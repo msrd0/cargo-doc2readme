@@ -1,0 +1,17 @@
+[package]
+name = "cargo-doc2readme"
+version = "0.0.0"
+publish = false
+authors = ["Dominic <git@msrd0.de>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0"
+clap = "3.0.0-beta.2"
+pulldown-cmark = { version = "0.8", default-features = false }
+syn = { version = "1.0", default-features = false }
+unindent = "0.1.7"
+
+[dev-dependencies]
+indoc = "1.0"
+pretty_assertions = "0.7"
