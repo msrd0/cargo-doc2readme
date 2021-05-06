@@ -1,4 +1,6 @@
+use once_cell::sync::Lazy;
 use pulldown_cmark::{Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag};
+use regex::Regex;
 use std::{
 	collections::{BTreeMap, VecDeque},
 	io::{self, Write}
@@ -23,7 +25,7 @@ pub fn emit(doc: &str, out: &mut dyn Write) -> anyhow::Result<()> {
 
 	let mut alignments: Vec<Alignment> = Vec::new();
 	let mut has_newline = true;
-	let mut links: BTreeMap<String, Option<String>> = BTreeMap::new();
+	let mut links: BTreeMap<String, String> = BTreeMap::new();
 	let mut link_idx: u32 = 0;
 	let mut indent: VecDeque<&'static str> = VecDeque::new();
 	let mut lists: VecDeque<Option<u64>> = VecDeque::new();
@@ -128,11 +130,11 @@ pub fn emit(doc: &str, out: &mut dyn Write) -> anyhow::Result<()> {
 					link_idx += 1;
 					match ty {
 						LinkType::Inline | LinkType::Reference | LinkType::Collapsed | LinkType::Shortcut => {
-							links.insert(link.clone(), Some(href.to_string()));
+							links.insert(link.clone(), href.to_string());
 							write!(out, "][{}]", link)
 						},
 						LinkType::ReferenceUnknown | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown => {
-							links.insert(link.clone(), Some(name.to_string()));
+							links.insert(link.clone(), name.to_string());
 							write!(out, "][{}]", link)
 						},
 						LinkType::Autolink | LinkType::Email => write!(out, ">")
@@ -162,12 +164,43 @@ pub fn emit(doc: &str, out: &mut dyn Write) -> anyhow::Result<()> {
 		}?;
 	}
 
+	// https://regex101.com/r/SzD4j1/1
+	static RUST_LINK_REGEX: Lazy<Regex> = Lazy::new(|| {
+		Regex::new("^(((::)?(?P<first>[a-zA-Z_][a-zA-Z0-9_]*))(?P<segments>(::[a-zA-Z_][a-zA-Z0-9_]*)*)::)?(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)$").unwrap()
+	});
+	for link in links.keys().map(|l| l.to_owned()).collect::<Vec<_>>() {
+		let mut href = links[&link].to_owned();
+		if href.starts_with("`") && href.ends_with("`") {
+			href = href[1..href.len() - 1].to_owned();
+		}
+		if let Some(c) = RUST_LINK_REGEX.captures(&href) {
+			let first = c.name("first").map(|g| g.as_str()).unwrap_or_default();
+			let segments = c.name("segments").map(|g| g.as_str()).unwrap_or_default();
+			let name = c.name("name").map(|g| g.as_str()).unwrap_or_default();
+			println!("[DEBUG] {:?} => {:?} {:?} {:?}", href, first, segments, name);
+
+			// TODO more sophisticated link generation
+			if !first.is_empty() {
+				// TODO using '*' as a version does not work
+				links.insert(
+					link,
+					format!(
+						"https://docs.rs/{crate}/*/{crate}/?search={crate}{segments}::{name}",
+						crate = first,
+						segments = segments,
+						name = name
+					)
+				);
+			} else {
+				links.insert(link, format!("https://crates.io/crates/{}", name));
+			}
+		}
+	}
+
 	if !links.is_empty() {
 		write!(out, "\n")?;
 		for (name, href) in links {
-			if let Some(href) = href {
-				write!(out, " [{}]: {}\n", name, href)?;
-			}
+			write!(out, " [{}]: {}\n", name, href)?;
 		}
 	}
 
