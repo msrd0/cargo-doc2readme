@@ -8,6 +8,11 @@ use std::{
 };
 
 const DEFAULT_CODEBLOCK_LANG: &str = "rust";
+const RUST_PRIMITIVES: &[&str] = &[
+	// https://doc.rust-lang.org/stable/std/primitive/index.html#reexports
+	"bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "str", "u128", "u16", "u32", "u64", "u8",
+	"usize"
+];
 
 fn broken_link_callback<'a>(lnk: BrokenLink<'_>) -> Option<(CowStr<'a>, CowStr<'a>)> {
 	Some(("".into(), lnk.reference.to_string().into()))
@@ -191,37 +196,55 @@ pub fn emit(input: InputFile, out: &mut dyn Write) -> anyhow::Result<()> {
 		if href.starts_with("`") && href.ends_with("`") {
 			href = href[1..href.len() - 1].to_owned();
 		}
-		if let Some(c) = RUST_LINK_REGEX.captures(&href) {
-			let first = c.name("first").map(|g| g.as_str()).unwrap_or_default();
-			let segments = c.name("segments").map(|g| g.as_str()).unwrap_or_default();
-			let name = c.name("name").map(|g| g.as_str()).unwrap_or_default();
-			println!("[DEBUG] {:?} => {:?} {:?} {:?}", href, first, segments, name);
+		loop {
+			if let Some(c) = RUST_LINK_REGEX.captures(&href) {
+				let first = c.name("first").map(|g| g.as_str()).unwrap_or_default();
+				let segments = c.name("segments").map(|g| g.as_str()).unwrap_or_default();
+				let name = c.name("name").map(|g| g.as_str()).unwrap_or_default();
+				println!("[DEBUG] {:?} => {:?} {:?} {:?}", href, first, segments, name);
 
-			// TODO more sophisticated link generation
-			if !first.is_empty() {
-				let (crate_name, crate_ver) = input
-					.dependencies
-					.get(first)
-					.map(|(name, ver)| (name.as_str(), ver.to_string()))
-					.unwrap_or((first, "*".to_string()));
-				links.insert(
-					link,
-					format!(
-						"https://docs.rs/{crate}/{ver}/{crate}/?search={crate}{segments}::{name}",
-						crate = crate_name,
-						ver = crate_ver,
-						segments = segments,
-						name = name
-					)
-				);
-			} else {
-				let (crate_name, crate_ver) = input
-					.dependencies
-					.get(name)
-					.map(|(name, ver)| (name.as_str(), format!("/{}", ver)))
-					.unwrap_or((name, String::new()));
-				links.insert(link, format!("https://crates.io/crates/{}{}", crate_name, crate_ver));
+				// TODO more sophisticated link generation
+				if first == "std" || first == "alloc" || first == "core" {
+					links.insert(
+						link,
+						format!(
+							"https://doc.rust-lang.org/stable/std/?search={crate}{segments}::{name}",
+							crate = first,
+							segments = segments,
+							name = name
+						)
+					);
+				} else if !first.is_empty() {
+					let (crate_name, crate_ver) = input
+						.dependencies
+						.get(first)
+						.map(|(name, ver)| (name.as_str(), ver.to_string()))
+						.unwrap_or((first, "*".to_string()));
+					links.insert(
+						link,
+						format!(
+							"https://docs.rs/{crate}/{ver}/{crate}/?search={crate}{segments}::{name}",
+							crate = crate_name,
+							ver = crate_ver,
+							segments = segments,
+							name = name
+						)
+					);
+				} else if input.scope.uses.contains_key(name) {
+					href = input.scope.uses[name].clone();
+					continue;
+				} else if RUST_PRIMITIVES.contains(&name) {
+					links.insert(link, format!("https://doc.rust-lang.org/stable/std/primitive.{}.html", name));
+				} else {
+					let (crate_name, crate_ver) = input
+						.dependencies
+						.get(name)
+						.map(|(name, ver)| (name.as_str(), format!("/{}", ver)))
+						.unwrap_or((name, String::new()));
+					links.insert(link, format!("https://crates.io/crates/{}{}", crate_name, crate_ver));
+				}
 			}
+			break;
 		}
 	}
 
@@ -237,7 +260,8 @@ pub fn emit(input: InputFile, out: &mut dyn Write) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-	use crate::input::InputFile;
+	use crate::input::{InputFile, Scope};
+	use cargo::core::Edition::Edition2018;
 	use indoc::indoc;
 	use std::collections::HashMap;
 
@@ -247,7 +271,8 @@ mod tests {
 			fn $test_fn() {
 				let input = InputFile {
 					rustdoc: $input.into(),
-					dependencies: HashMap::new()
+					dependencies: HashMap::new(),
+					scope: Scope::prelude(Edition2018)
 				};
 				println!("-- input --");
 				println!("{}", input.rustdoc);

@@ -1,8 +1,78 @@
-use cargo::core::{Manifest, Registry, Summary};
+use cargo::core::{Edition, Manifest, Registry, Summary};
 use semver::Version;
 use std::{collections::HashMap, fs::File, io::Read, path::Path};
 use syn::{Attribute, Lit, LitStr, Meta};
 use unindent::Unindent;
+
+#[derive(Debug)]
+pub struct Scope {
+	// use statements. maps name to path.
+	pub uses: HashMap<String, String>,
+	// items defined in the scope.
+	pub items: Vec<String>
+}
+
+impl Scope {
+	/// Create a new scope from the Rust prelude.
+	pub fn prelude(edition: Edition) -> Self {
+		let mut scope = Scope {
+			// https://doc.rust-lang.org/stable/std/prelude/index.html#prelude-contents
+			uses: (&[
+				("Copy", "marker"),
+				("Send", "marker"),
+				("Sized", "marker"),
+				("Sync", "marker"),
+				("Unpin", "marker"),
+				("Drop", "ops"),
+				("Fn", "ops"),
+				("FnMut", "ops"),
+				("FnOnce", "ops"),
+				("drop", "mem"),
+				("Box", "boxed"),
+				("ToOwned", "borrow"),
+				("Clone", "clone"),
+				("PartialEq", "cmp"),
+				("PartialOrd", "cmp"),
+				("Eq", "cmp"),
+				("Ord", "cmp"),
+				("AsRef", "convert"),
+				("AsMut", "convert"),
+				("Into", "convert"),
+				("From", "convert"),
+				("Default", "default"),
+				("Iterator", "iter"),
+				("Extend", "iter"),
+				("IntoIterator", "iter"),
+				("DoubleEndedIterator", "iter"),
+				("ExactSizeIterator", "iter"),
+				("Option", "option"),
+				("Some", "option::Option"),
+				("None", "option::Option"),
+				("Result", "result"),
+				("Ok", "result::Result"),
+				("Err", "result::Result"),
+				("String", "string"),
+				("ToString", "string"),
+				("Vec", "vec")
+			])
+				.iter()
+				.map(|(name, path)| (name.to_string(), format!("::std::{}::{}", path, name)))
+				.collect(),
+			items: Vec::new()
+		};
+
+		if edition >= Edition::Edition2021 {
+			// https://blog.rust-lang.org/2021/05/11/edition-2021.html#additions-to-the-prelude
+			scope.uses.insert("TryInto".to_owned(), "::std::convert::TryInto".to_owned());
+			scope.uses.insert("TryFrom".to_owned(), "::std::convert::TryFrom".to_owned());
+			scope
+				.uses
+				.insert("FromIterator".to_owned(), "::std::iter::FromIterator".to_owned());
+		}
+
+		scope
+	}
+}
 
 #[derive(Debug)]
 pub struct InputFile {
@@ -10,14 +80,23 @@ pub struct InputFile {
 	pub rustdoc: String,
 	/// The crate-level dependencies, mapping the name in rust code to the (possibly renamed)
 	/// crate name and version.
-	pub dependencies: HashMap<String, (String, Version)>
+	pub dependencies: HashMap<String, (String, Version)>,
+	/// The scope at the crate root.
+	pub scope: Scope
 }
 
 pub fn read_file<P: AsRef<Path>>(manifest: &Manifest, registry: &mut dyn Registry, path: P) -> anyhow::Result<InputFile> {
 	let rustdoc = read_rustdoc_from_file(path)?;
 	let dependencies = resolve_dependencies(manifest, registry)?;
 
-	Ok(InputFile { rustdoc, dependencies })
+	// TODO
+	let scope = Scope::prelude(manifest.edition());
+
+	Ok(InputFile {
+		rustdoc,
+		dependencies,
+		scope
+	})
 }
 
 fn read_rustdoc_from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<String> {
