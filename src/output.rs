@@ -1,3 +1,4 @@
+use crate::input::InputFile;
 use once_cell::sync::Lazy;
 use pulldown_cmark::{Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag};
 use regex::Regex;
@@ -20,10 +21,10 @@ fn newline(out: &mut dyn Write, indent: &VecDeque<&'static str>) -> io::Result<(
 	Ok(())
 }
 
-pub fn emit(doc: &str, out: &mut dyn Write) -> anyhow::Result<()> {
+pub fn emit(input: InputFile, out: &mut dyn Write) -> anyhow::Result<()> {
 	// we need this broken link callback for the purpose of broken links being parsed as links
 	let mut broken_link_callback = broken_link_callback;
-	let parser = Parser::new_with_broken_link_callback(doc, Options::all(), Some(&mut broken_link_callback));
+	let parser = Parser::new_with_broken_link_callback(&input.rustdoc, Options::all(), Some(&mut broken_link_callback));
 
 	let mut alignments: Vec<Alignment> = Vec::new();
 	let mut has_newline = true;
@@ -33,7 +34,7 @@ pub fn emit(doc: &str, out: &mut dyn Write) -> anyhow::Result<()> {
 	let mut lists: VecDeque<Option<u64>> = VecDeque::new();
 
 	for ev in parser {
-		println!("[DEBUG] ev = {:?}", ev);
+		//println!("[DEBUG] ev = {:?}", ev);
 		match ev {
 			Event::Start(tag) => match tag {
 				Tag::Paragraph => Ok(()),
@@ -198,18 +199,28 @@ pub fn emit(doc: &str, out: &mut dyn Write) -> anyhow::Result<()> {
 
 			// TODO more sophisticated link generation
 			if !first.is_empty() {
-				// TODO using '*' as a version does not work
+				let (crate_name, crate_ver) = input
+					.dependencies
+					.get(first)
+					.map(|(name, ver)| (name.as_str(), ver.to_string()))
+					.unwrap_or((first, "*".to_string()));
 				links.insert(
 					link,
 					format!(
-						"https://docs.rs/{crate}/*/{crate}/?search={crate}{segments}::{name}",
-						crate = first,
+						"https://docs.rs/{crate}/{ver}/{crate}/?search={crate}{segments}::{name}",
+						crate = crate_name,
+						ver = crate_ver,
 						segments = segments,
 						name = name
 					)
 				);
 			} else {
-				links.insert(link, format!("https://crates.io/crates/{}", name));
+				let (crate_name, crate_ver) = input
+					.dependencies
+					.get(name)
+					.map(|(name, ver)| (name.as_str(), format!("/{}", ver)))
+					.unwrap_or((name, String::new()));
+				links.insert(link, format!("https://crates.io/crates/{}{}", crate_name, crate_ver));
 			}
 		}
 	}
@@ -226,15 +237,20 @@ pub fn emit(doc: &str, out: &mut dyn Write) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
+	use crate::input::InputFile;
 	use indoc::indoc;
+	use std::collections::HashMap;
 
 	macro_rules! test_input {
 		($test_fn:ident($input:expr, $expected:expr)) => {
 			#[test]
 			fn $test_fn() {
-				let input: &str = $input;
+				let input = InputFile {
+					rustdoc: $input.into(),
+					dependencies: HashMap::new()
+				};
 				println!("-- input --");
-				println!("{}", input);
+				println!("{}", input.rustdoc);
 				println!("-- end input --");
 				let expected: &str = $expected;
 				let mut buf = Vec::<u8>::new();

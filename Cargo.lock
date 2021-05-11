@@ -159,6 +159,7 @@ dependencies = [
  "pretty_assertions",
  "pulldown-cmark",
  "regex",
+ "semver",
  "syn",
  "unindent",
 ]

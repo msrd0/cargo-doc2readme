@@ -5,7 +5,7 @@
 //!  [GitHub]: https://github.com
 
 use cargo::{
-	core::{EitherManifest, SourceId},
+	core::{registry::PackageRegistry, Dependency, EitherManifest, PackageId, SourceId},
 	util::{important_paths::find_root_manifest_for_wd, toml::read_manifest},
 	Config as CargoConfig
 };
@@ -28,7 +28,7 @@ struct Args {
 
 	/// Output File.
 	#[clap(short, long)]
-	out: String
+	out: PathBuf
 }
 
 #[derive(Clap)]
@@ -75,9 +75,33 @@ fn main() {
 		.or_else(|| targets.iter().find(|target| target.is_bin()))
 		.expect("Failed to find a library or binary target");
 
+	// initialize the crate registry
+	let _guard = cargo_cfg
+		.acquire_package_cache_lock()
+		.expect("Failed to aquire package cache lock");
+	let mut registry = PackageRegistry::new(&cargo_cfg).expect("Failed to initialize crate registry");
+	for (url, deps) in manifest.patch() {
+		let deps: Vec<(&Dependency, Option<(Dependency, PackageId)>)> = deps.iter().map(|dep| (dep, None)).collect();
+		registry.patch(url, &deps).expect("Failed to apply patches");
+	}
+	registry.lock_patches();
+
 	// process the target
 	let file = target.src_path().path().expect("Target does not have a source file");
-	let md = input::read_file(file).expect("Unable to read file");
-	let mut out = File::create(args.out).expect("Unable to create output file");
-	output::emit(&md, &mut out).expect("Unable to write output file");
+	cargo_cfg.shell().status("Reading", file.display()).ok();
+	let input_file = input::read_file(&manifest, &mut registry, file).expect("Unable to read file");
+	cargo_cfg
+		.shell()
+		.verbose(|shell| shell.status("Processing", format!("{:?}", input_file)))
+		.ok();
+	let out = if args.out.is_relative() {
+		env::current_dir().unwrap().join(args.out)
+	} else {
+		args.out
+	};
+	cargo_cfg.shell().status("Writing", out.display()).ok();
+	let mut out = File::create(out).expect("Unable to create output file");
+	output::emit(input_file, &mut out).expect("Unable to write output file");
+
+	cargo_cfg.release_package_cache_lock();
 }
