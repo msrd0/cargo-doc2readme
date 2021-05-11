@@ -6,6 +6,8 @@ use std::{
 	io::{self, Write}
 };
 
+const DEFAULT_CODEBLOCK_LANG: &str = "rust";
+
 fn broken_link_callback<'a>(lnk: BrokenLink<'_>) -> Option<(CowStr<'a>, CowStr<'a>)> {
 	Some(("".into(), lnk.reference.to_string().into()))
 }
@@ -49,10 +51,16 @@ pub fn emit(doc: &str, out: &mut dyn Write) -> anyhow::Result<()> {
 				},
 				Tag::CodeBlock(CodeBlockKind::Indented) => {
 					newline(out, &indent)?;
-					write!(out, "```")?;
+					write!(out, "```{}", DEFAULT_CODEBLOCK_LANG)?;
 					newline(out, &indent)
 				},
 				Tag::CodeBlock(CodeBlockKind::Fenced(lang)) => {
+					let lang: &str = &lang;
+					let lang = match lang {
+						"" => DEFAULT_CODEBLOCK_LANG,
+						lang if lang.starts_with("rust,") => "rust",
+						lang => lang
+					};
 					newline(out, &indent)?;
 					write!(out, "```{}", lang)?;
 					newline(out, &indent)
@@ -143,10 +151,19 @@ pub fn emit(doc: &str, out: &mut dyn Write) -> anyhow::Result<()> {
 			},
 			Event::Text(text) => {
 				has_newline = text.ends_with("\n");
-				for (i, line) in text.lines().enumerate() {
-					if i > 0 {
+				let mut first_line: bool = true;
+				for line in text.lines() {
+					// if a line starts with a sharp ('#'), it has either been parsed as a header,
+					// or is in a code block so should be omitted
+					if line == "#" || (line.starts_with('#') && line.chars().nth(1).unwrap_or('a').is_whitespace()) {
+						continue;
+					}
+
+					if !first_line {
 						newline(out, &indent)?;
 					}
+					first_line = false;
+
 					write!(out, "{}", line)?;
 				}
 				if has_newline {
