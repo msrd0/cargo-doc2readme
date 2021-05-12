@@ -37,7 +37,7 @@ use cargo::{
 	Config as CargoConfig
 };
 use clap::Clap;
-use std::{env, fs::File, path::PathBuf};
+use std::{borrow::Cow, env, fs::File, io::Read, path::PathBuf};
 
 mod input;
 mod output;
@@ -54,8 +54,13 @@ struct Args {
 	manifest_path: Option<PathBuf>,
 
 	/// Output File.
-	#[clap(short, long)]
-	out: PathBuf
+	#[clap(short, long, default_value = "README.md")]
+	out: PathBuf,
+
+	/// Template File. This is processed by Tera. Look at the source code for cargo-doc2readme for
+	/// an example.
+	#[clap(short, long, default_value = "README.j2")]
+	template: PathBuf
 }
 
 #[derive(Clap)]
@@ -113,6 +118,18 @@ fn main() {
 	}
 	registry.lock_patches();
 
+	// resolve the template
+	let template: Cow<'static, str> = if args.template.exists() {
+		let mut buf = String::new();
+		File::open(args.template)
+			.expect("Failed to open template")
+			.read_to_string(&mut buf)
+			.expect("Failed to read template");
+		buf.into()
+	} else {
+		include_str!("README.j2").into()
+	};
+
 	// process the target
 	let file = target.src_path().path().expect("Target does not have a source file");
 	cargo_cfg.shell().status("Reading", file.display()).ok();
@@ -131,7 +148,7 @@ fn main() {
 	};
 	cargo_cfg.shell().status("Writing", out.display()).ok();
 	let mut out = File::create(out).expect("Unable to create output file");
-	output::emit(input_file, include_str!("README.j2"), &mut out).expect("Unable to write output file");
+	output::emit(input_file, &template, &mut out).expect("Unable to write output file");
 
 	cargo_cfg.release_package_cache_lock();
 }
