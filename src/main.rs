@@ -101,7 +101,7 @@ fn main() {
 	};
 	cargo_cfg.shell().status("Writing", out.display()).ok();
 	let mut out = File::create(out).expect("Unable to create output file");
-	output::emit(input_file, &mut out).expect("Unable to write output file");
+	output::emit(input_file, include_str!("README.j2"), &mut out).expect("Unable to write output file");
 
 	cargo_cfg.release_package_cache_lock();
 }

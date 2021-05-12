@@ -1,11 +1,15 @@
 use crate::input::InputFile;
+use anyhow::anyhow;
 use once_cell::sync::Lazy;
 use pulldown_cmark::{Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag};
 use regex::Regex;
 use std::{
 	collections::{BTreeMap, VecDeque},
-	io::{self, Write}
+	fmt::{self, Write as _},
+	io
 };
+use tera::Tera;
+use url::Url;
 
 const DEFAULT_CODEBLOCK_LANG: &str = "rust";
 const RUST_PRIMITIVES: &[&str] = &[
@@ -18,7 +22,7 @@ fn broken_link_callback<'a>(lnk: BrokenLink<'_>) -> Option<(CowStr<'a>, CowStr<'
 	Some(("".into(), lnk.reference.to_string().into()))
 }
 
-fn newline(out: &mut dyn Write, indent: &VecDeque<&'static str>) -> io::Result<()> {
+fn newline(out: &mut dyn fmt::Write, indent: &VecDeque<&'static str>) -> fmt::Result {
 	write!(out, "\n")?;
 	for s in indent {
 		write!(out, "{}", s)?;
@@ -26,7 +30,7 @@ fn newline(out: &mut dyn Write, indent: &VecDeque<&'static str>) -> io::Result<(
 	Ok(())
 }
 
-pub fn emit(input: InputFile, out: &mut dyn Write) -> anyhow::Result<()> {
+pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> anyhow::Result<()> {
 	// we need this broken link callback for the purpose of broken links being parsed as links
 	let mut broken_link_callback = broken_link_callback;
 	let parser = Parser::new_with_broken_link_callback(&input.rustdoc, Options::all(), Some(&mut broken_link_callback));
@@ -38,6 +42,8 @@ pub fn emit(input: InputFile, out: &mut dyn Write) -> anyhow::Result<()> {
 	let mut indent: VecDeque<&'static str> = VecDeque::new();
 	let mut lists: VecDeque<Option<u64>> = VecDeque::new();
 
+	let mut readme = String::new();
+	let out = &mut readme;
 	for ev in parser {
 		//println!("[DEBUG] ev = {:?}", ev);
 		match ev {
@@ -248,12 +254,30 @@ pub fn emit(input: InputFile, out: &mut dyn Write) -> anyhow::Result<()> {
 		}
 	}
 
-	if !links.is_empty() {
-		write!(out, "\n")?;
-		for (name, href) in links {
-			write!(out, " [{}]: {}\n", name, href)?;
-		}
+	let mut readme_links = String::new();
+	let out = &mut readme_links;
+	for (name, href) in links {
+		write!(out, " [{}]: {}\n", name, href)?;
 	}
+
+	let mut ctx = tera::Context::new();
+	ctx.insert("crate", &input.crate_name);
+	if let Some(repo) = input.repository.as_deref() {
+		ctx.insert("repository", &repo);
+		ctx.insert(
+			"repository_host",
+			Url::parse(repo)?
+				.host_str()
+				.ok_or_else(|| anyhow!("repository url should have a host"))?
+		);
+	}
+	if let Some(license) = input.license.as_deref() {
+		ctx.insert("license", license);
+	}
+	ctx.insert("readme", &readme);
+	ctx.insert("links", &readme_links);
+	let str = Tera::one_off(template, &ctx, false /* no auto-escaping */)?;
+	write!(out_file, "{}", str)?;
 
 	Ok(())
 }
@@ -270,6 +294,9 @@ mod tests {
 			#[test]
 			fn $test_fn() {
 				let input = InputFile {
+					crate_name: "foo".to_owned(),
+					repository: None,
+					license: None,
 					rustdoc: $input.into(),
 					dependencies: HashMap::new(),
 					scope: Scope::prelude(Edition2018)
@@ -279,7 +306,12 @@ mod tests {
 				println!("-- end input --");
 				let expected: &str = $expected;
 				let mut buf = Vec::<u8>::new();
-				super::emit(input, &mut buf).unwrap();
+				super::emit(
+					input,
+					"{{ readme }}{% if links != \"\" %}\n{{ links }}{% endif %}",
+					&mut buf
+				)
+				.unwrap();
 				let actual = String::from_utf8(buf).unwrap();
 				pretty_assertions::assert_eq!(expected, actual);
 			}

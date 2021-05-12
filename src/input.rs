@@ -76,6 +76,12 @@ impl Scope {
 
 #[derive(Debug)]
 pub struct InputFile {
+	/// The name of the crate.
+	pub crate_name: String,
+	/// The repository url (if specified).
+	pub repository: Option<String>,
+	/// The license field (if specified).
+	pub license: Option<String>,
 	/// The unmodified rustdoc string
 	pub rustdoc: String,
 	/// The crate-level dependencies, mapping the name in rust code to the (possibly renamed)
@@ -86,6 +92,10 @@ pub struct InputFile {
 }
 
 pub fn read_file<P: AsRef<Path>>(manifest: &Manifest, registry: &mut dyn Registry, path: P) -> anyhow::Result<InputFile> {
+	let crate_name = manifest.name().to_string();
+	let repository = manifest.metadata().repository.clone();
+	let license = manifest.metadata().license.clone();
+
 	let rustdoc = read_rustdoc_from_file(path)?;
 	let dependencies = resolve_dependencies(manifest, registry)?;
 
@@ -93,6 +103,9 @@ pub fn read_file<P: AsRef<Path>>(manifest: &Manifest, registry: &mut dyn Registr
 	let scope = Scope::prelude(manifest.edition());
 
 	Ok(InputFile {
+		crate_name,
+		repository,
+		license,
 		rustdoc,
 		dependencies,
 		scope

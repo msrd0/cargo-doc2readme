@@ -4,6 +4,7 @@ version = "0.0.0"
 publish = false
 authors = ["Dominic <git@msrd0.de>"]
 edition = "2018"
+repository = "https://github.com/msrd0/cargo-doc2readme"
 
 [dependencies]
 anyhow = "1.0"
@@ -14,7 +15,9 @@ pulldown-cmark = { version = "0.8", default-features = false }
 regex = "1.5"
 semver = "0.10"
 syn = { version = "1.0", default-features = false }
+tera = "1.8"
 unindent = "0.1.7"
+url = "2.2"
 
 [dev-dependencies]
 indoc = "1.0"
