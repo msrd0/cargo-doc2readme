@@ -5,6 +5,7 @@ publish = false
 authors = ["Dominic <git@msrd0.de>"]
 edition = "2018"
 repository = "https://github.com/msrd0/cargo-doc2readme"
+license = "Apache-2.0"
 
 [dependencies]
 anyhow = "1.0"
