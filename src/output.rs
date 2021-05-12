@@ -130,9 +130,10 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 						newline(out, &indent)?;
 					}
 					write!(out, "```")?;
+					newline(out, &indent)?;
 					newline(out, &indent)
 				},
-				Tag::List(_) => Ok(()),
+				Tag::List(_) => newline(out, &indent),
 				Tag::Item => {
 					indent.pop_back();
 					newline(out, &indent)
