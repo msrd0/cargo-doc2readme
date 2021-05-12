@@ -11,17 +11,26 @@ cargo install cargo-doc2readme
 cargo doc2readme --out README.md
 ```
 
+
 ## Features
 
  - parse markdown from your rustdoc comments and embed it into your readme
+ - use existing crates to parse Rust and Markdown
  - support your `[CustomType]` rustdoc links
  - default, minimalistic readme template with some useful badges
  - custom readme templates
+
 
 ## Non-Goals
 
  - verbatim copy of your markdown
  - easy readability of the generated markdown source code
+
+
+## Similar tools
+
+[`cargo readme`][__link2] is a similar tool. However, it brings its own Rust code parser that only covers the 95% use case. Also, it does not support Rust path links introduced in Rust 1.48, making your readme ugly due to GitHub showing the unsupported links as raw markdown, and being less convenient for the reader that has to search [docs.rs][__link3] instead of clicking on a link.
+
 
 ## Stability Guarantees
 
@@ -30,3 +39,5 @@ This project adheres to semantic versioning. All versions will be tested against
 
  [__link0]: https://github.com
  [__link1]: https://crates.io
+ [__link2]: https://github.com/livioribeiro/cargo-readme
+ [__link3]: https://docs.rs
