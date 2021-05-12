@@ -207,6 +207,8 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 		}?;
 	}
 
+	// TODO we depend on syn anyways, so we should probably use syn to parse rust paths
+	// TODO instead of using a custom regex here
 	// https://regex101.com/r/SzD4j1/1
 	static RUST_LINK_REGEX: Lazy<Regex> = Lazy::new(|| {
 		Regex::new("^(((::)?(?P<first>[a-zA-Z_][a-zA-Z0-9_]*))(?P<segments>(::[a-zA-Z_][a-zA-Z0-9_]*)*)::)?(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)$").unwrap()
