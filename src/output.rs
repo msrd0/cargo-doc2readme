@@ -334,13 +334,13 @@ mod tests {
 	test_input!(test_tag_heading("# a", "\n## a\n\n"));
 	test_input!(test_tag_blockquote("> a\n> b", "\n> a b\n> \n> \n"));
 
-	test_input!(test_tag_codeblock_indented("\ta", "\n```\na\n```\n"));
-	test_input!(test_tag_codeblock_fenced("```\na\n```\n", "\n```\na\n```\n"));
-	test_input!(test_tag_codeblock_fenced_lang("```rust\na\n```\n", "\n```rust\na\n```\n"));
+	test_input!(test_tag_codeblock_indented("\ta", "\n```rust\na\n```\n\n"));
+	test_input!(test_tag_codeblock_fenced("```\na\n```\n", "\n```rust\na\n```\n\n"));
+	test_input!(test_tag_codeblock_fenced_lang("```rust\na\n```\n", "\n```rust\na\n```\n\n"));
 
-	test_input!(test_tag_list_ol("1. a\n3. b", " 1. a\n 1. b\n"));
-	test_input!(test_tag_list_ol_start("3. a\n1. b", " 3. a\n 3. b\n"));
-	test_input!(test_tag_list_ul("- a\n- b", " - a\n - b\n"));
+	test_input!(test_tag_list_ol("1. a\n3. b", " 1. a\n 1. b\n\n"));
+	test_input!(test_tag_list_ol_start("3. a\n1. b", " 3. a\n 3. b\n\n"));
+	test_input!(test_tag_list_ul("- a\n- b", " - a\n - b\n\n"));
 
 	test_input!(test_tag_emphasis("*a* _b_", "*a* *b*\n\n"));
 	test_input!(test_tag_strong("**a** __b__", "**a** **b**\n\n"));
@@ -354,17 +354,26 @@ mod tests {
 		"[a][b]\n\n [b]: https://example.org",
 		"[a][__link0]\n\n\n [__link0]: https://example.org\n"
 	));
-	test_input!(test_tag_link_reference_unknown("[a][b]", "[a][__link0]\n\n\n [__link0]: b\n"));
+	test_input!(test_tag_link_reference_unknown(
+		"[a][b]",
+		"[a][__link0]\n\n\n [__link0]: https://crates.io/crates/b\n"
+	));
 	test_input!(test_tag_link_collapsed(
 		"[a][]\n\n [a]: https://example.org",
 		"[a][__link0]\n\n\n [__link0]: https://example.org\n"
 	));
-	test_input!(test_tag_link_collapsed_unknown("[a][]", "[a][__link0]\n\n\n [__link0]: a\n"));
+	test_input!(test_tag_link_collapsed_unknown(
+		"[a][]",
+		"[a][__link0]\n\n\n [__link0]: https://crates.io/crates/a\n"
+	));
 	test_input!(test_tag_link_shortcut(
 		"[a]\n\n [a]: https://example.org",
 		"[a][__link0]\n\n\n [__link0]: https://example.org\n"
 	));
-	test_input!(test_tag_link_shortcut_unknown("[a]", "[a][__link0]\n\n\n [__link0]: a\n"));
+	test_input!(test_tag_link_shortcut_unknown(
+		"[a]",
+		"[a][__link0]\n\n\n [__link0]: https://crates.io/crates/a\n"
+	));
 	test_input!(test_tag_link_autolink("<https://example.org>", "<https://example.org>\n\n"));
 	test_input!(test_tag_link_email("<noreply@example.org>", "<noreply@example.org>\n\n"));
 	test_input!(test_local_link("[a](#a)", "[a](#a)\n\n"));
@@ -394,6 +403,7 @@ mod tests {
 				println!("Hello World");
 			}
 			```
+			
 			 3. You realize that your idea is too nested
 				> like this table you saw recently
 				> 
@@ -403,8 +413,11 @@ mod tests {
 				> 
 				>  - there you have it
 				> 
+				> 
 				
 			
+			
+		
 	"#);
 	test_input!(test_nested(NESTED, &format!("\n#{}", NESTED)));
 }
