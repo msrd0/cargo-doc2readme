@@ -14,7 +14,7 @@ clap = "3.0.0-beta.2"
 once_cell = "1.7"
 pulldown-cmark = { version = "0.8", default-features = false }
 regex = "1.5"
-semver = "0.10"
+semver = "0.11"
 syn = { version = "1.0", default-features = false }
 tera = "1.8"
 unindent = "0.1.7"
