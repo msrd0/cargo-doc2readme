@@ -23,3 +23,7 @@ url = "2.2"
 [dev-dependencies]
 indoc = "1.0"
 pretty_assertions = "0.7"
+
+[profile.release]
+lto = true
+opt-level = "z"
