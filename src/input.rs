@@ -84,8 +84,8 @@ pub struct InputFile {
 	pub license: Option<String>,
 	/// The unmodified rustdoc string
 	pub rustdoc: String,
-	/// The crate-level dependencies, mapping the name in rust code to the (possibly renamed)
-	/// crate name and version.
+	/// The crate-level dependencies, mapping the valid identifier in rust code to the (possibly
+	/// renamed, containing invalid characters, etc.) crate name and version.
 	pub dependencies: HashMap<String, (String, Version)>,
 	/// The scope at the crate root.
 	pub scope: Scope
@@ -165,7 +165,7 @@ fn resolve_dependencies(
 				.unwrap_or(true)
 			{
 				deps.insert(
-					dep.name_in_toml().to_string(),
+					dep.name_in_toml().to_string().replace("-", "_"),
 					(sum.name().to_string(), sum.version().clone())
 				);
 			}
