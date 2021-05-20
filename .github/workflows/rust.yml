@@ -38,7 +38,6 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
-      - run: ./tests/ui/rustfmt.sh --check
   
   docker:
     runs-on: ubuntu-latest
