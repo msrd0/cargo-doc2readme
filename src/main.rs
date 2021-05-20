@@ -8,6 +8,20 @@
 //! cargo doc2readme --out README.md
 //! ```
 //!
+//! If you want to run this using GitHub Actions, you can use the pre-built docker image:
+//!
+//! ```yaml
+//! readme:
+//!   runs-on: ubuntu-latest
+//!   steps:
+//!     - uses: actions/checkout@v2
+//!     - uses: docker://ghcr.io/msrd0/cargo-doc2readme
+//!       with:
+//!         entrypoint: cargo
+//!         args: doc2readme
+//!     - run: git diff --exit-code README.md
+//! ```
+//!
 //! # Features
 //!
 //!  - parse markdown from your rustdoc comments and embed it into your readme
