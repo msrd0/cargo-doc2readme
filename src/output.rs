@@ -12,6 +12,8 @@ use tera::Tera;
 use url::Url;
 
 const DEFAULT_CODEBLOCK_LANG: &str = "rust";
+/// List of codeblock flags that rustdoc allows
+const RUSTDOC_CODEBLOCK_FLAGS: &[&str] = &["no_run", "ignore", "compile_fail", "edition2018", "should_panic"];
 const RUST_PRIMITIVES: &[&str] = &[
 	// https://doc.rust-lang.org/stable/std/primitive/index.html#reexports
 	"bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "str", "u128", "u16", "u32", "u64", "u8",
@@ -81,12 +83,17 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 					newline(out, &indent)
 				},
 				Tag::CodeBlock(CodeBlockKind::Fenced(lang)) => {
-					let lang: &str = &lang;
-					let lang = match lang {
-						"" => DEFAULT_CODEBLOCK_LANG,
-						lang if lang.starts_with("rust,") => "rust",
-						lang => lang
-					};
+					// Strip rustdoc code-block flags from the language
+					let mut lang = lang.to_string();
+					for flag in RUSTDOC_CODEBLOCK_FLAGS {
+						lang = lang.replace(flag, "");
+					}
+					lang = lang.replace(",", "");
+
+					if lang.is_empty() {
+						lang = "rust".to_owned();
+					}
+
 					newline(out, &indent)?;
 					write!(out, "```{}", lang)?;
 					newline(out, &indent)
