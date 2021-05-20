@@ -13,7 +13,7 @@ include = ["src/**/*", "Cargo.lock", "README.md", "LICENSE"]
 
 [dependencies]
 anyhow = "1.0"
-cargo = "0.53.0"
+cargo = { version = "0.53.0", features = ["openssl"] }
 clap = "3.0.0-beta.2"
 once_cell = "1.7"
 pulldown-cmark = { version = "0.8", default-features = false }
@@ -23,6 +23,7 @@ syn = { version = "1.0", default-features = false }
 tera = "1.8"
 unindent = "0.1.7"
 url = "2.2"
+git2-curl = "0.14.1"
 
 [dev-dependencies]
 indoc = "1.0"

@@ -137,6 +137,9 @@ fn main() {
 		include_str!("README.j2").into()
 	};
 
+	// Configure git transport ( makes cargo compatible with HTTP proxies )
+	init_git_transports(&cargo_cfg);
+
 	// process the target
 	let file = target.src_path().path().expect("Target does not have a source file");
 	cargo_cfg.shell().status("Reading", file.display()).ok();
@@ -158,4 +161,36 @@ fn main() {
 	output::emit(input_file, &template, &mut out).expect("Unable to write output file");
 
 	cargo_cfg.release_package_cache_lock();
+}
+
+/// Copied from cargo crate:
+/// https://github.com/rust-lang/cargo/blob/e870eac9967b132825116525476d6875c305e4d8/src/bin/cargo/main.rs#L199
+fn init_git_transports(config: &CargoConfig) {
+	// Only use a custom transport if any HTTP options are specified,
+	// such as proxies or custom certificate authorities. The custom
+	// transport, however, is not as well battle-tested.
+
+	match cargo::ops::needs_custom_http_transport(config) {
+		Ok(true) => {},
+		_ => return
+	}
+
+	let handle = match cargo::ops::http_handle(config) {
+		Ok(handle) => handle,
+		Err(..) => return
+	};
+
+	// The unsafety of the registration function derives from two aspects:
+	//
+	// 1. This call must be synchronized with all other registration calls as
+	//    well as construction of new transports.
+	// 2. The argument is leaked.
+	//
+	// We're clear on point (1) because this is only called at the start of this
+	// binary (we know what the state of the world looks like) and we're mostly
+	// clear on point (2) because we'd only free it after everything is done
+	// anyway
+	unsafe {
+		git2_curl::register(handle);
+	}
 }
