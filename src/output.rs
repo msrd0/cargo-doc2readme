@@ -186,6 +186,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 			Event::Text(text) => {
 				has_newline = text.ends_with("\n");
 				let mut first_line: bool = true;
+				let mut empty: bool = true;
 				for line in text.lines() {
 					// if a line starts with a sharp ('#'), it has either been parsed as a header,
 					// or is in a code block so should be omitted
@@ -198,9 +199,10 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 					}
 					first_line = false;
 
+					empty = false;
 					write!(out, "{}", line)?;
 				}
-				if has_newline {
+				if has_newline && !empty {
 					newline(out, &indent)?;
 				}
 				Ok(())
