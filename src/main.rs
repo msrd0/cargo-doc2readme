@@ -53,7 +53,7 @@
 //!  [docs.rs]: https://docs.rs
 
 use cargo::{
-	core::{registry::PackageRegistry, Dependency, EitherManifest, PackageId, SourceId},
+	core::{registry::PackageRegistry, Dependency, EitherManifest, PackageId, SourceId, Verbosity},
 	util::{important_paths::find_root_manifest_for_wd, toml::read_manifest},
 	Config as CargoConfig
 };
@@ -112,6 +112,12 @@ fn main() {
 		(EitherManifest::Real(manifest), _) => manifest,
 		(EitherManifest::Virtual(_), _) => panic!("What on earth is a virtual manifest?")
 	};
+
+	// fix cargo being extremely verbose by default
+	match env::var("RUST_LOG") {
+		Ok(log) if log == "debug" => cargo_cfg.shell().set_verbosity(Verbosity::Verbose),
+		_ => cargo_cfg.shell().set_verbosity(Verbosity::Normal)
+	}
 
 	// find the target whose rustdoc comment we'll use.
 	// this uses a library target if exists, otherwise a binary target with the same name as the

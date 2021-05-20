@@ -224,7 +224,6 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 			let first = c.name("first").map(|g| g.as_str()).unwrap_or_default();
 			let segments = c.name("segments").map(|g| g.as_str()).unwrap_or_default();
 			let name = c.name("name").map(|g| g.as_str()).unwrap_or_default();
-			println!("[DEBUG] {:?} => {:?} {:?} {:?}", href, first, segments, name);
 
 			// TODO more sophisticated link generation
 			if first == "std" || first == "alloc" || first == "core" {
