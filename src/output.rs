@@ -1,13 +1,13 @@
 use crate::input::{InputFile, Scope};
 use anyhow::anyhow;
-use once_cell::sync::Lazy;
+use itertools::Itertools;
 use pulldown_cmark::{Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag};
-use regex::Regex;
 use std::{
 	collections::{BTreeMap, VecDeque},
 	fmt::{self, Write as _},
 	io
 };
+use syn::Path;
 use tera::Tera;
 use url::Url;
 
@@ -215,58 +215,47 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 		}?;
 	}
 
-	// TODO we depend on syn anyways, so we should probably use syn to parse rust paths
-	// TODO instead of using a custom regex here
-	// https://regex101.com/r/SzD4j1/1
-	static RUST_LINK_REGEX: Lazy<Regex> = Lazy::new(|| {
-		Regex::new("^(((::)?(?P<first>[a-zA-Z_][a-zA-Z0-9_]*))(?P<segments>(::[a-zA-Z_][a-zA-Z0-9_]*)*)::)?(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)$").unwrap()
-	});
 	for link in links.keys().map(|l| l.to_owned()).collect::<Vec<_>>() {
 		let mut href = links[&link].to_owned();
 		if href.starts_with("`") && href.ends_with("`") {
 			href = href[1..href.len() - 1].to_owned();
 		}
 		href = input.scope.resolve(href);
-		if let Some(c) = RUST_LINK_REGEX.captures(&href) {
-			let first = c.name("first").map(|g| g.as_str()).unwrap_or_default();
-			let segments = c.name("segments").map(|g| g.as_str()).unwrap_or_default();
-			let name = c.name("name").map(|g| g.as_str()).unwrap_or_default();
+		if let Ok(path) = syn::parse_str::<Path>(&href) {
+			let first = path
+				.segments
+				.first()
+				.map(|segment| segment.ident.to_string())
+				.unwrap_or_default();
+			// remove all arguments so that `Vec<String>` points to Vec
+			let search = path.segments.iter().map(|segment| segment.ident.to_string()).join("::");
 
 			// TODO more sophisticated link generation
 			if first == "std" || first == "alloc" || first == "core" {
-				links.insert(
-					link,
-					format!(
-						"https://doc.rust-lang.org/stable/std/?search={crate}{segments}::{name}",
-						crate = first,
-						segments = segments,
-						name = name
-					)
-				);
-			} else if !first.is_empty() {
+				links.insert(link, format!("https://doc.rust-lang.org/stable/std/?search={}", search));
+			} else if path.segments.len() > 1 {
 				let (crate_name, crate_ver) = input
 					.dependencies
-					.get(first)
+					.get(&first)
 					.map(|(name, ver)| (name.as_str(), ver.to_string()))
-					.unwrap_or((first, "*".to_string()));
+					.unwrap_or((&first, "*".to_string()));
 				links.insert(
 					link,
 					format!(
-						"https://docs.rs/{crate}/{ver}/{crate}/?search={crate}{segments}::{name}",
+						"https://docs.rs/{crate}/{ver}/{crate}/?search={search}",
 						crate = crate_name,
 						ver = crate_ver,
-						segments = segments,
-						name = name
+						search = search
 					)
 				);
-			} else if RUST_PRIMITIVES.contains(&name) {
-				links.insert(link, format!("https://doc.rust-lang.org/stable/std/primitive.{}.html", name));
+			} else if RUST_PRIMITIVES.contains(&first.as_str()) {
+				links.insert(link, format!("https://doc.rust-lang.org/stable/std/primitive.{}.html", first));
 			} else {
 				let (crate_name, crate_ver) = input
 					.dependencies
-					.get(name)
+					.get(&first)
 					.map(|(name, ver)| (name.as_str(), format!("/{}", ver)))
-					.unwrap_or((name, String::new()));
+					.unwrap_or((&first, String::new()));
 				links.insert(link, format!("https://crates.io/crates/{}{}", crate_name, crate_ver));
 			}
 		}
