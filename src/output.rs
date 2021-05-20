@@ -242,10 +242,11 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				links.insert(
 					link,
 					format!(
-						"https://docs.rs/{crate}/{ver}/{crate}/?search={search}",
-						crate = crate_name,
-						ver = crate_ver,
-						search = search
+						"https://docs.rs/{}/{}/{}/?search={}",
+						crate_name,
+						crate_ver,
+						crate_name.replace("-", "_"),
+						search
 					)
 				);
 			} else if RUST_PRIMITIVES.contains(&first.as_str()) {
