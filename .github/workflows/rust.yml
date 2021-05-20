@@ -64,6 +64,6 @@ jobs:
           docker tag "$image" "$tag"
           
           echo "==> Pushing docker image"
-          dokcer push "$tag"
+          docker push "$tag"
           docker push "$image"
           docker push "$cache"
