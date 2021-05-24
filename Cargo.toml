@@ -20,7 +20,7 @@ itertools = "0.10"
 pulldown-cmark = { version = "0.8", default-features = false }
 semver = "0.10"
 syn = { version = "1.0", default-features = false }
-tera = "1.8"
+tera = "1.10"
 unindent = "0.1.7"
 url = "2.2"
 
