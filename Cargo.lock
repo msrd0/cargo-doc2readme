@@ -164,7 +164,7 @@ dependencies = [
  "rustc-workspace-hack",
  "rustfix",
  "same-file",
- "semver",
+ "semver 0.10.0",
  "serde",
  "serde_ignored",
  "serde_json",
@@ -193,7 +193,7 @@ dependencies = [
  "itertools",
  "pretty_assertions",
  "pulldown-cmark",
- "semver",
+ "semver 1.0.0",
  "syn",
  "tera",
  "unindent",
@@ -1236,6 +1236,12 @@ dependencies = [
  "semver-parser",
  "serde",
 ]
+
+[[package]]
+name = "semver"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76b5842e81eb9bbea19276a9dbbda22ac042532f390a67ab08b895617978abf3"
 
 [[package]]
 name = "semver-parser"
