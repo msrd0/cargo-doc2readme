@@ -153,7 +153,7 @@ fn resolve_dependencies(
 	// the last release. Also, the version in the current manifest might not be released, so
 	// those links might be dead.
 	deps.insert(
-		manifest.name().to_string(),
+		manifest.name().to_string().replace('-', "_"),
 		(manifest.name().to_string(), manifest.version().clone())
 	);
 
@@ -165,7 +165,7 @@ fn resolve_dependencies(
 				.unwrap_or(true)
 			{
 				deps.insert(
-					dep.name_in_toml().to_string().replace("-", "_"),
+					dep.name_in_toml().to_string().replace('-', "_"),
 					(sum.name().to_string(), sum.version().clone())
 				);
 			}
@@ -184,7 +184,7 @@ macro_rules! item_ident {
 }
 
 fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result<Scope> {
-	let crate_name = manifest.name();
+	let crate_name = manifest.name().replace('-', "_");
 	let mut scope = Scope::prelude(manifest.edition());
 
 	for i in &file.items {
