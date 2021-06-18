@@ -53,7 +53,10 @@
 //!  [docs.rs]: https://docs.rs
 
 use cargo::{
-	core::{registry::PackageRegistry, Dependency, EitherManifest, PackageId, SourceId, Verbosity},
+	core::{
+		registry::{LockedPatchDependency, PackageRegistry},
+		Dependency, EitherManifest, SourceId, Verbosity
+	},
 	util::{important_paths::find_root_manifest_for_wd, toml::read_manifest},
 	Config as CargoConfig
 };
@@ -140,7 +143,7 @@ fn main() {
 		.expect("Failed to aquire package cache lock");
 	let mut registry = PackageRegistry::new(&cargo_cfg).expect("Failed to initialize crate registry");
 	for (url, deps) in manifest.patch() {
-		let deps: Vec<(&Dependency, Option<(Dependency, PackageId)>)> = deps.iter().map(|dep| (dep, None)).collect();
+		let deps: Vec<(&Dependency, Option<LockedPatchDependency>)> = deps.iter().map(|dep| (dep, None)).collect();
 		registry.patch(url, &deps).expect("Failed to apply patches");
 	}
 	registry.lock_patches();
