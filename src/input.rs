@@ -158,16 +158,10 @@ fn resolve_dependencies(
 	);
 
 	for dep in manifest.dependencies() {
+		let dep_name = dep.name_in_toml().to_string().replace('-', "_");
 		let mut f = |sum: Summary| {
-			if deps
-				.get(dep.name_in_toml().as_str())
-				.map(|(_, ver)| ver < sum.version())
-				.unwrap_or(true)
-			{
-				deps.insert(
-					dep.name_in_toml().to_string().replace('-', "_"),
-					(sum.name().to_string(), sum.version().clone())
-				);
+			if deps.get(&dep_name).map(|(_, ver)| ver < sum.version()).unwrap_or(true) {
+				deps.insert(dep_name.clone(), (sum.name().to_string(), sum.version().clone()));
 			}
 		};
 		registry.query(dep, &mut f, false).expect("Failed to resolve dependency");
