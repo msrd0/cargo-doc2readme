@@ -60,18 +60,18 @@ use cargo::{
 	util::{important_paths::find_root_manifest_for_wd, toml::read_manifest},
 	Config as CargoConfig
 };
-use clap::Clap;
+use clap::Parser;
 use std::{borrow::Cow, env, fs::File, io::Read, path::PathBuf};
 
 mod input;
 mod output;
 
-#[derive(Clap)]
+#[derive(Parser)]
 enum Subcommand {
 	Doc2readme(Args)
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 struct Args {
 	/// Path to Cargo.toml.
 	#[clap(long)]
@@ -87,7 +87,7 @@ struct Args {
 	template: PathBuf
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 struct CmdLine {
 	#[clap(subcommand)]
 	cmd: Subcommand
