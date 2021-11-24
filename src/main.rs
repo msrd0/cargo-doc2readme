@@ -63,6 +63,8 @@ use cargo::{
 use clap::Parser;
 use std::{borrow::Cow, env, fs::File, io::Read, path::PathBuf};
 
+use crate::input::CrateCode;
+
 mod input;
 mod output;
 
@@ -84,7 +86,12 @@ struct Args {
 	/// Template File. This is processed by Tera. Look at the source code for cargo-doc2readme for
 	/// an example.
 	#[clap(short, long, default_value = "README.j2")]
-	template: PathBuf
+	template: PathBuf,
+
+	/// Whether if we must expand the macros before generating the readme file.
+	/// This uses cargo internally and requires the nightly toolchain.
+	#[clap(long)]
+	expand_macros: bool
 }
 
 #[derive(Parser)]
@@ -137,6 +144,14 @@ fn main() {
 		.or_else(|| targets.iter().find(|target| target.is_bin()))
 		.expect("Failed to find a library or binary target");
 
+	// read crate code
+	let file = target.src_path().path().expect("Target does not have a source file");
+	let code = if args.expand_macros {
+		CrateCode::read_expansion(manifest_path.as_path()).expect("Failed to read crate code")
+	} else {
+		CrateCode::read_from_disk(file).expect("Failed to read crate code")
+	};
+
 	// initialize the crate registry
 	let _guard = cargo_cfg
 		.acquire_package_cache_lock()
@@ -164,9 +179,8 @@ fn main() {
 	init_git_transports(&cargo_cfg);
 
 	// process the target
-	let file = target.src_path().path().expect("Target does not have a source file");
 	cargo_cfg.shell().status("Reading", file.display()).ok();
-	let input_file = input::read_file(&manifest, &mut registry, file).expect("Unable to read file");
+	let input_file = input::read_code(&manifest, &mut registry, code).expect("Unable to read file");
 	cargo_cfg
 		.shell()
 		.verbose(|shell| shell.status("Processing", format!("{:?}", input_file)))
