@@ -88,8 +88,8 @@ struct Args {
 	#[clap(short, long, default_value = "README.j2")]
 	template: PathBuf,
 
-	/// Whether if we must expand the macros before generating the readme file.
-	/// This uses cargo internally and requires the nightly toolchain.
+	/// Use nightly rustc to expand macros prior to reading the source. This is necessary if you
+	/// use function-like macros in doc attributes, as introduced in Rust 1.54.
 	#[clap(long)]
 	expand_macros: bool
 }
