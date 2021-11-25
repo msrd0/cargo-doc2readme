@@ -1,7 +1,14 @@
+use anyhow::{bail, Context};
 use cargo::core::{Edition, Manifest, Registry, Summary};
 use semver::Version;
-use std::{collections::HashMap, fs::File, io::Read, path::Path};
-use syn::{Attribute, Item, Lit, LitStr, Meta, UseTree};
+use std::{
+	collections::HashMap,
+	fs::File,
+	io::{self, Read, Write},
+	path::Path,
+	process::{Command, Output}
+};
+use syn::{Attribute, Item, ItemUse, Lit, LitStr, Meta, UsePath, UseTree};
 use unindent::Unindent;
 
 #[derive(Debug)]
@@ -75,6 +82,51 @@ impl Scope {
 }
 
 #[derive(Debug)]
+pub struct CrateCode(String);
+
+impl CrateCode {
+	pub(crate) fn read_from_disk<P>(path: &P) -> anyhow::Result<CrateCode>
+	where
+		P: AsRef<Path> + ?Sized
+	{
+		let mut file = File::open(path)?;
+		let mut buf = String::new();
+		file.read_to_string(&mut buf)?;
+
+		Ok(CrateCode(buf))
+	}
+
+	pub(crate) fn read_expansion<P>(manifest_path: &P) -> anyhow::Result<CrateCode>
+	where
+		P: AsRef<Path> + ?Sized
+	{
+		let Output { stdout, stderr, status } = Command::new("cargo")
+			.arg("+nightly")
+			.arg("rustc")
+			.arg(format!("--manifest-path={}", manifest_path.as_ref().display()))
+			.arg("--")
+			.arg("-Zunpretty=expanded")
+			.output()
+			.context("Failed to run cargo to expand crate content")?;
+
+		if !status.success() {
+			// Something bad happened during the compilation. Let's print
+			// anything Cargo reported to us and return an error.
+			io::stdout()
+				.lock()
+				.write_all(stderr.as_slice())
+				.expect("Failed to write cargo errors to stdout");
+
+			bail!("Cargo failed to expand the macros")
+		}
+
+		String::from_utf8(stdout)
+			.context("Failed to convert cargo output to UTF-8")
+			.map(CrateCode)
+	}
+}
+
+#[derive(Debug)]
 pub struct InputFile {
 	/// The name of the crate.
 	pub crate_name: String,
@@ -91,15 +143,12 @@ pub struct InputFile {
 	pub scope: Scope
 }
 
-pub fn read_file<P: AsRef<Path>>(manifest: &Manifest, registry: &mut dyn Registry, path: P) -> anyhow::Result<InputFile> {
+pub fn read_code(manifest: &Manifest, registry: &mut dyn Registry, code: CrateCode) -> anyhow::Result<InputFile> {
 	let crate_name = manifest.name().to_string();
 	let repository = manifest.metadata().repository.clone();
 	let license = manifest.metadata().license.clone();
 
-	let mut file = File::open(path)?;
-	let mut buf = String::new();
-	file.read_to_string(&mut buf)?;
-	let file = syn::parse_file(&buf)?;
+	let file = syn::parse_file(code.0.as_str())?;
 
 	let rustdoc = read_rustdoc_from_file(&file)?;
 	let dependencies = resolve_dependencies(manifest, registry)?;
@@ -198,7 +247,7 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 			Item::TraitAlias(i) => item_ident!(crate_name, &i.ident),
 			Item::Type(i) => item_ident!(crate_name, &i.ident),
 			Item::Union(i) => item_ident!(crate_name, &i.ident),
-			Item::Use(i) => {
+			Item::Use(i) if !is_prelude_import(i) => {
 				add_use_tree_to_scope(&mut scope, String::new(), &i.tree);
 				continue;
 			},
@@ -235,4 +284,14 @@ fn add_use_tree_to_scope(scope: &mut Scope, prefix: String, tree: &UseTree) {
 			}
 		},
 	};
+}
+
+fn is_prelude_import(item_use: &ItemUse) -> bool {
+	match &item_use.tree {
+		UseTree::Path(UsePath { ident, tree, .. }) if ident == "std" => match tree.as_ref() {
+			UseTree::Path(UsePath { ident, .. }) => ident == "prelude",
+			_ => false
+		},
+		_ => false
+	}
 }
