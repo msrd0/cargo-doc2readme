@@ -39,7 +39,7 @@ fn broken_link_callback<'a>(lnk: BrokenLink<'_>) -> Option<(CowStr<'a>, CowStr<'
 }
 
 fn newline(out: &mut dyn fmt::Write, indent: &VecDeque<&'static str>) -> fmt::Result {
-	write!(out, "\n")?;
+	writeln!(out)?;
 	for s in indent {
 		write!(out, "{}", s)?;
 	}
@@ -166,7 +166,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				Tag::Emphasis => write!(out, "*"),
 				Tag::Strong => write!(out, "**"),
 				Tag::Strikethrough => write!(out, "~~"),
-				Tag::Link(_, href, _) if href.starts_with("#") => write!(out, "]({})", href),
+				Tag::Link(_, href, _) if href.starts_with('#') => write!(out, "]({})", href),
 				Tag::Link(ty, href, name) | Tag::Image(ty, href, name) => {
 					let link = format!("__link{}", link_idx);
 					link_idx += 1;
@@ -184,7 +184,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				}
 			},
 			Event::Text(text) => {
-				has_newline = text.ends_with("\n");
+				has_newline = text.ends_with('\n');
 				let mut first_line: bool = true;
 				let mut empty: bool = true;
 				for line in text.lines() {
@@ -219,7 +219,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 
 	for link in links.keys().map(|l| l.to_owned()).collect::<Vec<_>>() {
 		let mut href = links[&link].to_owned();
-		if href.starts_with("`") && href.ends_with("`") {
+		if href.starts_with('`') && href.ends_with('`') {
 			href = href[1..href.len() - 1].to_owned();
 		}
 		href = input.scope.resolve(href);
@@ -267,7 +267,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 	let mut readme_links = String::new();
 	let out = &mut readme_links;
 	for (name, href) in links {
-		write!(out, " [{}]: {}\n", name, href)?;
+		writeln!(out, " [{}]: {}", name, href)?;
 	}
 
 	let mut ctx = tera::Context::new();
@@ -376,7 +376,7 @@ mod tests {
 	test_input!(test_tag_link_email("<noreply@example.org>", "<noreply@example.org>\n\n"));
 	test_input!(test_local_link("[a](#a)", "[a](#a)\n\n"));
 
-	#[cfg_attr(rustfmt, rustfmt_skip)]
+	#[rustfmt::skip]
 	const TABLE: &str = indoc!(r#"
 		| a | b | c | d |
 		| --- |:--- |:---:| ---:|
@@ -384,7 +384,7 @@ mod tests {
 	"#);
 	test_input!(test_table(TABLE, &format!("{}\n", TABLE)));
 
-	#[cfg_attr(rustfmt, rustfmt_skip)]
+	#[rustfmt::skip]
 	const NESTED: &str = indoc!(r#"
 		# Nested Madness
 		

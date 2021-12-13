@@ -166,7 +166,7 @@ fn read_rustdoc_from_file(file: &syn::File) -> anyhow::Result<String> {
 	let mut doc = String::new();
 	for attr in &file.attrs {
 		if attr.path.is_ident("doc") {
-			if let Some(str) = parse_doc_attr(&attr)? {
+			if let Some(str) = parse_doc_attr(attr)? {
 				// always push a newline: unindent ignores the first line
 				doc.push('\n');
 				doc.push_str(&str.value());
