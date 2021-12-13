@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! `cargo doc2readme` is a cargo subcommand to create a readme file to display on [GitHub] or [crates.io],
 //! containing the rustdoc comments from your code.
 //!
@@ -227,6 +229,7 @@ fn init_git_transports(config: &CargoConfig) {
 	// binary (we know what the state of the world looks like) and we're mostly
 	// clear on point (2) because we'd only free it after everything is done
 	// anyway
+	#[allow(unsafe_code)]
 	unsafe {
 		git2_curl::register(handle);
 	}

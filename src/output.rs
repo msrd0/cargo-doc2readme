@@ -240,7 +240,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 					.dependencies
 					.get(&first)
 					.map(|(name, ver)| (name.as_str(), ver.to_string()))
-					.unwrap_or((&first, "*".to_string()));
+					.unwrap_or((&first, "latest".to_string()));
 				links.insert(
 					link,
 					format!(

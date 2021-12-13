@@ -5,21 +5,21 @@ description = "cargo subcommand to create a readme file containing the rustdoc c
 authors = ["Dominic <git@msrd0.de>"]
 categories = ["command-line-utilities", "development-tools", "development-tools::cargo-plugins"]
 keywords = ["cargo", "subcommand", "readme", "doc2readme", "rustdoc"]
-edition = "2018"
+edition = "2021"
 repository = "https://github.com/msrd0/cargo-doc2readme"
 license = "Apache-2.0"
 readme = "README.md"
 include = ["src/**/*", "Cargo.lock", "README.md", "LICENSE"]
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1.0.47"
 cargo = { version = "0.58.0", features = ["openssl"] }
 clap = { version = "=3.0.0-rc.4", features = ["derive"] }
 git2-curl = "0.14.1"
 itertools = "0.10"
 pulldown-cmark = { version = "0.8", default-features = false }
 semver = "1.0"
-syn = { version = "1.0", default-features = false }
+syn = { version = "1.0.82", features = ["full", "parsing"], default-features = false }
 tera = "1.15"
 unindent = "0.1.7"
 url = "2.2"

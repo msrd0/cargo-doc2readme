@@ -24,7 +24,7 @@ impl Scope {
 	pub fn prelude(edition: Edition) -> Self {
 		let mut scope = Scope {
 			// https://doc.rust-lang.org/stable/std/prelude/index.html#prelude-contents
-			scope: (&[
+			scope: [
 				("Copy", "marker"),
 				("Send", "marker"),
 				("Sized", "marker"),
@@ -61,20 +61,18 @@ impl Scope {
 				("String", "string"),
 				("ToString", "string"),
 				("Vec", "vec")
-			])
-				.iter()
-				.map(|(name, path)| (name.to_string(), format!("::std::{}::{}", path, name)))
-				.collect(),
+			]
+			.into_iter()
+			.map(|(name, path)| (name.into(), format!("::std::{}::{}", path, name)))
+			.collect(),
 			has_glob_use: false
 		};
 
 		if edition >= Edition::Edition2021 {
 			// https://blog.rust-lang.org/2021/05/11/edition-2021.html#additions-to-the-prelude
-			scope.scope.insert("TryInto".to_owned(), "::std::convert::TryInto".to_owned());
-			scope.scope.insert("TryFrom".to_owned(), "::std::convert::TryFrom".to_owned());
-			scope
-				.scope
-				.insert("FromIterator".to_owned(), "::std::iter::FromIterator".to_owned());
+			scope.scope.insert("TryInto".into(), "::std::convert::TryInto".into());
+			scope.scope.insert("TryFrom".into(), "::std::convert::TryFrom".into());
+			scope.scope.insert("FromIterator".into(), "::std::iter::FromIterator".into());
 		}
 
 		scope
