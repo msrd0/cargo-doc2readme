@@ -19,7 +19,7 @@ git2-curl = "0.14.1"
 itertools = "0.10"
 pulldown-cmark = { version = "0.8", default-features = false }
 semver = "1.0"
-syn = { version = "1.0.82", features = ["full", "parsing"], default-features = false }
+syn = { version = "1.0.84", features = ["full", "parsing"], default-features = false }
 tera = "1.15"
 unindent = "0.1.7"
 url = "2.2"
