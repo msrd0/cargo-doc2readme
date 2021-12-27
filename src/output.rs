@@ -65,9 +65,9 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 		match ev {
 			Event::Start(tag) => match tag {
 				Tag::Paragraph => Ok(()),
-				Tag::Heading(lvl) => {
+				Tag::Heading(lvl, ..) => {
 					newline(out, &indent)?;
-					for _ in 0..=lvl {
+					for _ in 0..=lvl as u8 {
 						write!(out, "#")?;
 					}
 					write!(out, " ")
@@ -124,7 +124,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				Tag::Image(..) => write!(out, "![")
 			},
 			Event::End(tag) => match tag {
-				Tag::Paragraph | Tag::Heading(_) => {
+				Tag::Paragraph | Tag::Heading(..) => {
 					newline(out, &indent)?;
 					newline(out, &indent)
 				},
