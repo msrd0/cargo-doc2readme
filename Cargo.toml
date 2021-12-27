@@ -17,7 +17,7 @@ cargo = { version = "0.58.0", features = ["openssl"] }
 clap = { version = "=3.0.0-rc.8", features = ["derive"] }
 git2-curl = "0.14.1"
 itertools = "0.10"
-pulldown-cmark = { version = "0.8", default-features = false }
+pulldown-cmark = { version = "0.9", default-features = false }
 semver = "1.0"
 syn = { version = "1.0.84", features = ["full", "parsing"], default-features = false }
 tera = "1.15"
