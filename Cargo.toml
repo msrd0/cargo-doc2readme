@@ -22,7 +22,7 @@ semver = "1.0"
 sha2 = "0.10.1"
 siphasher = "0.3.7"
 syn = { version = "1.0.85", features = ["full", "parsing"], default-features = false }
-tera = "1.15"
+tera = { version = "1.15", default-features = false }
 unindent = "0.1.7"
 url = "2.2"
 
