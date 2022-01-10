@@ -1,7 +1,9 @@
 use crate::input::{InputFile, Scope};
 use anyhow::anyhow;
 use itertools::Itertools;
-use pulldown_cmark::{Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag};
+use pulldown_cmark::{
+	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
+};
 use std::{
 	collections::{BTreeMap, VecDeque},
 	fmt::{self, Write as _},
@@ -13,11 +15,17 @@ use url::Url;
 
 const DEFAULT_CODEBLOCK_LANG: &str = "rust";
 /// List of codeblock flags that rustdoc allows
-const RUSTDOC_CODEBLOCK_FLAGS: &[&str] = &["no_run", "ignore", "compile_fail", "edition2018", "should_panic"];
+const RUSTDOC_CODEBLOCK_FLAGS: &[&str] = &[
+	"no_run",
+	"ignore",
+	"compile_fail",
+	"edition2018",
+	"should_panic"
+];
 const RUST_PRIMITIVES: &[&str] = &[
 	// https://doc.rust-lang.org/stable/std/primitive/index.html#reexports
-	"bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "str", "u128", "u16", "u32", "u64", "u8",
-	"usize"
+	"bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "str", "u128", "u16",
+	"u32", "u64", "u8", "usize"
 ];
 
 impl Scope {
@@ -49,7 +57,11 @@ fn newline(out: &mut dyn fmt::Write, indent: &VecDeque<&'static str>) -> fmt::Re
 pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> anyhow::Result<()> {
 	// we need this broken link callback for the purpose of broken links being parsed as links
 	let mut broken_link_callback = broken_link_callback;
-	let parser = Parser::new_with_broken_link_callback(&input.rustdoc, Options::all(), Some(&mut broken_link_callback));
+	let parser = Parser::new_with_broken_link_callback(
+		&input.rustdoc,
+		Options::all(),
+		Some(&mut broken_link_callback)
+	);
 
 	let mut alignments: Vec<Alignment> = Vec::new();
 	let mut has_newline = true;
@@ -119,7 +131,9 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				Tag::Emphasis => write!(out, "*"),
 				Tag::Strong => write!(out, "**"),
 				Tag::Strikethrough => write!(out, "~~"),
-				Tag::Link(LinkType::Autolink, ..) | Tag::Link(LinkType::Email, ..) => write!(out, "<"),
+				Tag::Link(LinkType::Autolink, ..) | Tag::Link(LinkType::Email, ..) => {
+					write!(out, "<")
+				},
 				Tag::Link(..) => write!(out, "["),
 				Tag::Image(..) => write!(out, "![")
 			},
@@ -171,11 +185,16 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 					let link = format!("__link{}", link_idx);
 					link_idx += 1;
 					match ty {
-						LinkType::Inline | LinkType::Reference | LinkType::Collapsed | LinkType::Shortcut => {
+						LinkType::Inline
+						| LinkType::Reference
+						| LinkType::Collapsed
+						| LinkType::Shortcut => {
 							links.insert(link.clone(), href.to_string());
 							write!(out, "][{}]", link)
 						},
-						LinkType::ReferenceUnknown | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown => {
+						LinkType::ReferenceUnknown
+						| LinkType::CollapsedUnknown
+						| LinkType::ShortcutUnknown => {
 							links.insert(link.clone(), name.to_string());
 							write!(out, "][{}]", link)
 						},
@@ -190,7 +209,10 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				for line in text.lines() {
 					// if a line starts with a sharp ('#'), it has either been parsed as a header,
 					// or is in a code block so should be omitted
-					if line == "#" || (line.starts_with('#') && line.chars().nth(1).unwrap_or('a').is_whitespace()) {
+					if line == "#"
+						|| (line.starts_with('#')
+							&& line.chars().nth(1).unwrap_or('a').is_whitespace())
+					{
 						continue;
 					}
 
@@ -230,11 +252,18 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				.map(|segment| segment.ident.to_string())
 				.unwrap_or_default();
 			// remove all arguments so that `Vec<String>` points to Vec
-			let search = path.segments.iter().map(|segment| segment.ident.to_string()).join("::");
+			let search = path
+				.segments
+				.iter()
+				.map(|segment| segment.ident.to_string())
+				.join("::");
 
 			// TODO more sophisticated link generation
 			if first == "std" || first == "alloc" || first == "core" {
-				links.insert(link, format!("https://doc.rust-lang.org/stable/std/?search={}", search));
+				links.insert(
+					link,
+					format!("https://doc.rust-lang.org/stable/std/?search={}", search)
+				);
 			} else if path.segments.len() > 1 {
 				let (crate_name, crate_ver) = input
 					.dependencies
@@ -252,14 +281,23 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 					)
 				);
 			} else if RUST_PRIMITIVES.contains(&first.as_str()) {
-				links.insert(link, format!("https://doc.rust-lang.org/stable/std/primitive.{}.html", first));
+				links.insert(
+					link,
+					format!(
+						"https://doc.rust-lang.org/stable/std/primitive.{}.html",
+						first
+					)
+				);
 			} else {
 				let (crate_name, crate_ver) = input
 					.dependencies
 					.get(&first)
 					.map(|(name, ver)| (name.as_str(), format!("/{}", ver)))
 					.unwrap_or((&first, String::new()));
-				links.insert(link, format!("https://crates.io/crates/{}{}", crate_name, crate_ver));
+				links.insert(
+					link,
+					format!("https://crates.io/crates/{}{}", crate_name, crate_ver)
+				);
 			}
 		}
 	}
@@ -333,8 +371,14 @@ mod tests {
 	test_input!(test_tag_blockquote("> a\n> b", "\n> a b\n> \n> \n"));
 
 	test_input!(test_tag_codeblock_indented("\ta", "\n```rust\na\n```\n\n"));
-	test_input!(test_tag_codeblock_fenced("```\na\n```\n", "\n```rust\na\n```\n\n"));
-	test_input!(test_tag_codeblock_fenced_lang("```rust\na\n```\n", "\n```rust\na\n```\n\n"));
+	test_input!(test_tag_codeblock_fenced(
+		"```\na\n```\n",
+		"\n```rust\na\n```\n\n"
+	));
+	test_input!(test_tag_codeblock_fenced_lang(
+		"```rust\na\n```\n",
+		"\n```rust\na\n```\n\n"
+	));
 
 	test_input!(test_tag_list_ol("1. a\n3. b", " 1. a\n 1. b\n\n"));
 	test_input!(test_tag_list_ol_start("3. a\n1. b", " 3. a\n 3. b\n\n"));
@@ -372,8 +416,14 @@ mod tests {
 		"[a]",
 		"[a][__link0]\n\n\n [__link0]: https://crates.io/crates/a\n"
 	));
-	test_input!(test_tag_link_autolink("<https://example.org>", "<https://example.org>\n\n"));
-	test_input!(test_tag_link_email("<noreply@example.org>", "<noreply@example.org>\n\n"));
+	test_input!(test_tag_link_autolink(
+		"<https://example.org>",
+		"<https://example.org>\n\n"
+	));
+	test_input!(test_tag_link_email(
+		"<noreply@example.org>",
+		"<noreply@example.org>\n\n"
+	));
 	test_input!(test_local_link("[a](#a)", "[a](#a)\n\n"));
 
 	#[rustfmt::skip]

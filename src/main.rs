@@ -114,13 +114,16 @@ fn main() {
 	let manifest_path = match args.manifest_path {
 		Some(path) if path.is_relative() => env::current_dir().unwrap().join(path),
 		Some(path) => path,
-		None => find_root_manifest_for_wd(&env::current_dir().unwrap()).expect("Unable to find Cargo.toml")
+		None => find_root_manifest_for_wd(&env::current_dir().unwrap())
+			.expect("Unable to find Cargo.toml")
 	};
 
 	// parse the cargo manifest
 	let cargo_cfg = CargoConfig::default().expect("Failed to initialize cargo");
 	let src_id = SourceId::for_path(&manifest_path).expect("Failed to obtain source id");
-	let manifest = match read_manifest(&manifest_path, src_id, &cargo_cfg).expect("Failed to read Cargo.toml") {
+	let manifest = match read_manifest(&manifest_path, src_id, &cargo_cfg)
+		.expect("Failed to read Cargo.toml")
+	{
 		(EitherManifest::Real(manifest), _) => manifest,
 		(EitherManifest::Virtual(_), _) => panic!("What on earth is a virtual manifest?")
 	};
@@ -147,7 +150,10 @@ fn main() {
 		.expect("Failed to find a library or binary target");
 
 	// read crate code
-	let file = target.src_path().path().expect("Target does not have a source file");
+	let file = target
+		.src_path()
+		.path()
+		.expect("Target does not have a source file");
 	let code = if args.expand_macros {
 		CrateCode::read_expansion(manifest_path.as_path()).expect("Failed to read crate code")
 	} else {
@@ -158,9 +164,11 @@ fn main() {
 	let _guard = cargo_cfg
 		.acquire_package_cache_lock()
 		.expect("Failed to aquire package cache lock");
-	let mut registry = PackageRegistry::new(&cargo_cfg).expect("Failed to initialize crate registry");
+	let mut registry =
+		PackageRegistry::new(&cargo_cfg).expect("Failed to initialize crate registry");
 	for (url, deps) in manifest.patch() {
-		let deps: Vec<(&Dependency, Option<LockedPatchDependency>)> = deps.iter().map(|dep| (dep, None)).collect();
+		let deps: Vec<(&Dependency, Option<LockedPatchDependency>)> =
+			deps.iter().map(|dep| (dep, None)).collect();
 		registry.patch(url, &deps).expect("Failed to apply patches");
 	}
 	registry.lock_patches();

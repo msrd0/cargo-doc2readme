@@ -70,9 +70,15 @@ impl Scope {
 
 		if edition >= Edition::Edition2021 {
 			// https://blog.rust-lang.org/2021/05/11/edition-2021.html#additions-to-the-prelude
-			scope.scope.insert("TryInto".into(), "::std::convert::TryInto".into());
-			scope.scope.insert("TryFrom".into(), "::std::convert::TryFrom".into());
-			scope.scope.insert("FromIterator".into(), "::std::iter::FromIterator".into());
+			scope
+				.scope
+				.insert("TryInto".into(), "::std::convert::TryInto".into());
+			scope
+				.scope
+				.insert("TryFrom".into(), "::std::convert::TryFrom".into());
+			scope
+				.scope
+				.insert("FromIterator".into(), "::std::iter::FromIterator".into());
 		}
 
 		scope
@@ -98,10 +104,17 @@ impl CrateCode {
 	where
 		P: AsRef<Path> + ?Sized
 	{
-		let Output { stdout, stderr, status } = Command::new("cargo")
+		let Output {
+			stdout,
+			stderr,
+			status
+		} = Command::new("cargo")
 			.arg("+nightly")
 			.arg("rustc")
-			.arg(format!("--manifest-path={}", manifest_path.as_ref().display()))
+			.arg(format!(
+				"--manifest-path={}",
+				manifest_path.as_ref().display()
+			))
 			.arg("--")
 			.arg("-Zunpretty=expanded")
 			.output()
@@ -141,7 +154,11 @@ pub struct InputFile {
 	pub scope: Scope
 }
 
-pub fn read_code(manifest: &Manifest, registry: &mut dyn Registry, code: CrateCode) -> anyhow::Result<InputFile> {
+pub fn read_code(
+	manifest: &Manifest,
+	registry: &mut dyn Registry,
+	code: CrateCode
+) -> anyhow::Result<InputFile> {
 	let crate_name = manifest.name().to_string();
 	let repository = manifest.metadata().repository.clone();
 	let license = manifest.metadata().license.clone();
@@ -207,11 +224,20 @@ fn resolve_dependencies(
 	for dep in manifest.dependencies() {
 		let dep_name = dep.name_in_toml().to_string().replace('-', "_");
 		let mut f = |sum: Summary| {
-			if deps.get(&dep_name).map(|(_, ver)| ver < sum.version()).unwrap_or(true) {
-				deps.insert(dep_name.clone(), (sum.name().to_string(), sum.version().clone()));
+			if deps
+				.get(&dep_name)
+				.map(|(_, ver)| ver < sum.version())
+				.unwrap_or(true)
+			{
+				deps.insert(
+					dep_name.clone(),
+					(sum.name().to_string(), sum.version().clone())
+				);
 			}
 		};
-		registry.query(dep, &mut f, false).expect("Failed to resolve dependency");
+		registry
+			.query(dep, &mut f, false)
+			.expect("Failed to resolve dependency");
 	}
 
 	Ok(deps)
@@ -236,7 +262,9 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 				(&i.rename.as_ref().unwrap().1, format!("::{}", i.ident))
 			},
 			Item::Fn(i) => item_ident!(crate_name, &i.sig.ident),
-			Item::Macro(i) if i.ident.is_some() => item_ident!(crate_name, i.ident.as_ref().unwrap()),
+			Item::Macro(i) if i.ident.is_some() => {
+				item_ident!(crate_name, i.ident.as_ref().unwrap())
+			},
 			Item::Macro2(i) => item_ident!(crate_name, &i.ident),
 			Item::Mod(i) => item_ident!(crate_name, &i.ident),
 			Item::Static(i) => item_ident!(crate_name, &i.ident),
@@ -259,7 +287,9 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 
 fn add_use_tree_to_scope(scope: &mut Scope, prefix: String, tree: &UseTree) {
 	match tree {
-		UseTree::Path(path) => add_use_tree_to_scope(scope, format!("{}{}::", prefix, path.ident), &path.tree),
+		UseTree::Path(path) => {
+			add_use_tree_to_scope(scope, format!("{}{}::", prefix, path.ident), &path.tree)
+		},
 		UseTree::Name(name) => {
 			// skip `pub use dependency;` style uses; they don't add any unknown elements to the scope
 			if !prefix.is_empty() {

@@ -1,5 +1,5 @@
-edition = "2018"
-max_width = 125
+edition = "2021"
+max_width = 100
 newline_style = "Unix"
 unstable_features = true
 
