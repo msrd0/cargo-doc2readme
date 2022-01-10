@@ -1,9 +1,15 @@
 use anyhow::{bail, Context};
 use cargo::core::{Edition, Manifest, Registry, Summary};
 use semver::Version;
+use sha2::{
+	digest::generic_array::{typenum::U32, GenericArray},
+	Digest, Sha256
+};
+use siphasher::sip128::{Hasher128, SipHasher24};
 use std::{
 	collections::HashMap,
 	fs::File,
+	hash::Hash,
 	io::{self, Read, Write},
 	path::Path,
 	process::{Command, Output}
@@ -149,6 +155,8 @@ pub struct InputFile {
 	pub license: Option<String>,
 	/// The unmodified rustdoc string
 	pub rustdoc: String,
+	/// A hash value of the dependencies as specified in the `Cargo.toml` file.
+	pub dependencies_hash: Option<GenericArray<u8, U32>>,
 	/// The crate-level dependencies, mapping the valid identifier in rust code to the (possibly
 	/// renamed, containing invalid characters, etc.) crate name and version.
 	pub dependencies: HashMap<String, (String, Version)>,
@@ -171,11 +179,25 @@ pub fn read_code(
 	let dependencies = resolve_dependencies(manifest, registry)?;
 	let scope = read_scope_from_file(manifest, &file)?;
 
+	// This hash is far from perfect, since it relies on cargo's `Hash` implementation for `Dependency`
+	// (which is at the time of writing auto-derived, so should cover everything but rely on the
+	// order in which the fields are defined), and doesn't use a cryptographic hash for the deps
+	// themselves, but just as a compilation at the end. However, it's the best we got without making
+	// this a lot more complex.
+	let mut sha2 = Sha256::new();
+	for dep in manifest.dependencies() {
+		let mut hasher = SipHasher24::new();
+		dep.hash(&mut hasher);
+		sha2.update(&hasher.finish128().as_bytes());
+	}
+	let dependencies_hash = Some(sha2.finalize());
+
 	Ok(InputFile {
 		crate_name,
 		repository,
 		license,
 		rustdoc,
+		dependencies_hash,
 		dependencies,
 		scope
 	})

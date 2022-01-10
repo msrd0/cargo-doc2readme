@@ -305,9 +305,18 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 	}
 
 	let mut readme_links = String::new();
-	let out = &mut readme_links;
+	if let Some(hash) = input.dependencies_hash {
+		// unwrap: writing to a String never fails
+		writeln!(
+			readme_links,
+			" [__cargo_doc2readme_dependencies_hash]: {:X}",
+			hash
+		)
+		.unwrap();
+	}
 	for (name, href) in links {
-		writeln!(out, " [{}]: {}", name, href)?;
+		// unwrap: writing to a String never fails
+		writeln!(readme_links, " [{}]: {}", name, href).unwrap();
 	}
 
 	let mut ctx = tera::Context::new();
@@ -348,6 +357,7 @@ mod tests {
 					repository: None,
 					license: None,
 					rustdoc: $input.into(),
+					dependencies_hash: None,
 					dependencies: HashMap::new(),
 					scope: Scope::prelude(Edition2018)
 				};
