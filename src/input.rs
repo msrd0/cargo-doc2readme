@@ -20,6 +20,14 @@ pub struct Scope {
 }
 
 impl Scope {
+	fn insert<K, V>(&mut self, key: K, value: V)
+	where
+		K: Into<String>,
+		V: Into<String>
+	{
+		self.scope.insert(key.into(), value.into());
+	}
+
 	/// Create a new scope from the Rust prelude.
 	pub fn prelude(edition: Edition) -> Self {
 		let mut scope = Scope {
@@ -70,15 +78,9 @@ impl Scope {
 
 		if edition >= Edition::Edition2021 {
 			// https://blog.rust-lang.org/2021/05/11/edition-2021.html#additions-to-the-prelude
-			scope
-				.scope
-				.insert("TryInto".into(), "::std::convert::TryInto".into());
-			scope
-				.scope
-				.insert("TryFrom".into(), "::std::convert::TryFrom".into());
-			scope
-				.scope
-				.insert("FromIterator".into(), "::std::iter::FromIterator".into());
+			scope.insert("TryInto", "::std::convert::TryInto");
+			scope.insert("TryFrom", "::std::convert::TryFrom");
+			scope.insert("FromIterator", "::std::iter::FromIterator");
 		}
 
 		scope
@@ -279,7 +281,7 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 			},
 			_ => continue
 		};
-		scope.scope.insert(ident.to_string(), path);
+		scope.insert(ident.to_string(), path);
 	}
 
 	Ok(scope)
@@ -293,15 +295,11 @@ fn add_use_tree_to_scope(scope: &mut Scope, prefix: String, tree: &UseTree) {
 		UseTree::Name(name) => {
 			// skip `pub use dependency;` style uses; they don't add any unknown elements to the scope
 			if !prefix.is_empty() {
-				scope
-					.scope
-					.insert(name.ident.to_string(), format!("{}{}", prefix, name.ident));
+				scope.insert(name.ident.to_string(), format!("{}{}", prefix, name.ident));
 			}
 		},
 		UseTree::Rename(name) => {
-			scope
-				.scope
-				.insert(name.rename.to_string(), format!("{}{}", prefix, name.ident));
+			scope.insert(name.rename.to_string(), format!("{}{}", prefix, name.ident));
 		},
 		UseTree::Glob(_) => {
 			scope.has_glob_use = true;

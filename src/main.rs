@@ -1,4 +1,5 @@
-#![deny(unsafe_code)]
+#![warn(rust_2018_idioms, rustdoc::broken_intra_doc_links)]
+#![deny(elided_lifetimes_in_paths, unsafe_code)]
 
 //! `cargo doc2readme` is a cargo subcommand to create a readme file to display on [GitHub] or [crates.io],
 //! containing the rustdoc comments from your code.
@@ -210,8 +211,8 @@ fn main() {
 	cargo_cfg.release_package_cache_lock();
 }
 
-/// Copied from cargo crate:
-/// https://github.com/rust-lang/cargo/blob/e870eac9967b132825116525476d6875c305e4d8/src/bin/cargo/main.rs#L199
+// Copied from cargo crate:
+// https://github.com/rust-lang/cargo/blob/e870eac9967b132825116525476d6875c305e4d8/src/bin/cargo/main.rs#L199
 fn init_git_transports(config: &CargoConfig) {
 	// Only use a custom transport if any HTTP options are specified,
 	// such as proxies or custom certificate authorities. The custom

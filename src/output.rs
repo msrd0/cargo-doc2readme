@@ -16,10 +16,12 @@ use url::Url;
 const DEFAULT_CODEBLOCK_LANG: &str = "rust";
 /// List of codeblock flags that rustdoc allows
 const RUSTDOC_CODEBLOCK_FLAGS: &[&str] = &[
-	"no_run",
-	"ignore",
 	"compile_fail",
+	"edition2015",
 	"edition2018",
+	"edition2021",
+	"ignore",
+	"no_run",
 	"should_panic"
 ];
 const RUST_PRIMITIVES: &[&str] = &[
