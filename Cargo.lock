@@ -1374,11 +1374,11 @@ dependencies = [
 [[package]]
 name = "tera"
 version = "1.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3cac831b615c25bcef632d1cabf864fa05813baad3d526829db18eb70e8b58d"
+source = "git+https://github.com/msrd0/tera?rev=e636269b1ce7833811872a91cdede34ddd0853d2#e636269b1ce7833811872a91cdede34ddd0853d2"
 dependencies = [
  "globwalk",
  "lazy_static",
+ "percent-encoding",
  "pest",
  "pest_derive",
  "regex",
