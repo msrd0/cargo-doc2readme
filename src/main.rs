@@ -194,7 +194,7 @@ fn main() {
 	let input_file = input::read_code(&manifest, &mut registry, code).expect("Unable to read file");
 	cargo_cfg
 		.shell()
-		.verbose(|shell| shell.status("Processing", format!("{:?}", input_file)))
+		.verbose(|shell| shell.status("Processing", format_args!("{input_file:?}")))
 		.ok();
 	if input_file.scope.has_glob_use {
 		cargo_cfg.shell().warn("Your code contains glob use statements (e.g. `use std::io::prelude::*;`). Those can lead to incomplete link generation.").ok();

@@ -77,7 +77,7 @@ impl Scope {
 				("Vec", "vec")
 			]
 			.into_iter()
-			.map(|(name, path)| (name.into(), format!("::std::{}::{}", path, name)))
+			.map(|(name, path)| (name.into(), format!("::std::{path}::{name}")))
 			.collect(),
 			has_glob_use: false
 		};
@@ -269,8 +269,8 @@ fn resolve_dependencies(
 
 macro_rules! item_ident {
 	($crate_name:expr, $ident:expr) => {{
-		let _ident: &::syn::Ident = $ident;
-		(_ident, format!("::{}::{}", $crate_name, _ident))
+		let ident: &::syn::Ident = $ident;
+		(ident, format!("::{}::{ident}", $crate_name))
 	}};
 }
 
@@ -320,16 +320,16 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 fn add_use_tree_to_scope(scope: &mut Scope, prefix: String, tree: &UseTree) {
 	match tree {
 		UseTree::Path(path) => {
-			add_use_tree_to_scope(scope, format!("{}{}::", prefix, path.ident), &path.tree)
+			add_use_tree_to_scope(scope, format!("{prefix}{}::", path.ident), &path.tree)
 		},
 		UseTree::Name(name) => {
 			// skip `pub use dependency;` style uses; they don't add any unknown elements to the scope
 			if !prefix.is_empty() {
-				scope.insert(name.ident.to_string(), format!("{}{}", prefix, name.ident));
+				scope.insert(name.ident.to_string(), format!("{prefix}{}", name.ident));
 			}
 		},
 		UseTree::Rename(name) => {
-			scope.insert(name.rename.to_string(), format!("{}{}", prefix, name.ident));
+			scope.insert(name.rename.to_string(), format!("{prefix}{}", name.ident));
 		},
 		UseTree::Glob(_) => {
 			scope.has_glob_use = true;

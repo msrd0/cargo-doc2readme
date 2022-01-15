@@ -51,7 +51,7 @@ fn broken_link_callback<'a>(lnk: BrokenLink<'_>) -> Option<(CowStr<'a>, CowStr<'
 fn newline(out: &mut dyn fmt::Write, indent: &VecDeque<&'static str>) -> fmt::Result {
 	writeln!(out)?;
 	for s in indent {
-		write!(out, "{}", s)?;
+		write!(out, "{s}")?;
 	}
 	Ok(())
 }
@@ -109,7 +109,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 					}
 
 					newline(out, &indent)?;
-					write!(out, "```{}", lang)?;
+					write!(out, "```{lang}")?;
 					newline(out, &indent)
 				},
 				Tag::List(start) => {
@@ -119,7 +119,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				Tag::Item => {
 					indent.push_back("\t");
 					match lists.back().unwrap() {
-						Some(start) => write!(out, " {}. ", start),
+						Some(start) => write!(out, " {start}. "),
 						None => write!(out, " - ")
 					}
 				},
@@ -182,9 +182,9 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				Tag::Emphasis => write!(out, "*"),
 				Tag::Strong => write!(out, "**"),
 				Tag::Strikethrough => write!(out, "~~"),
-				Tag::Link(_, href, _) if href.starts_with('#') => write!(out, "]({})", href),
+				Tag::Link(_, href, _) if href.starts_with('#') => write!(out, "]({href})"),
 				Tag::Link(ty, href, name) | Tag::Image(ty, href, name) => {
-					let link = format!("__link{}", link_idx);
+					let link = format!("__link{link_idx}");
 					link_idx += 1;
 					match ty {
 						LinkType::Inline
@@ -192,13 +192,13 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 						| LinkType::Collapsed
 						| LinkType::Shortcut => {
 							links.insert(link.clone(), href.to_string());
-							write!(out, "][{}]", link)
+							write!(out, "][{link}]")
 						},
 						LinkType::ReferenceUnknown
 						| LinkType::CollapsedUnknown
 						| LinkType::ShortcutUnknown => {
 							links.insert(link.clone(), name.to_string());
-							write!(out, "][{}]", link)
+							write!(out, "][{link}]")
 						},
 						LinkType::Autolink | LinkType::Email => write!(out, ">")
 					}
@@ -224,15 +224,15 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 					first_line = false;
 
 					empty = false;
-					write!(out, "{}", line)?;
+					write!(out, "{line}")?;
 				}
 				if has_newline && !empty {
 					newline(out, &indent)?;
 				}
 				Ok(())
 			},
-			Event::Code(text) => write!(out, "`{}`", text),
-			Event::Html(text) => write!(out, "{}", text),
+			Event::Code(text) => write!(out, "`{text}`"),
+			Event::Html(text) => write!(out, "{text}"),
 			Event::FootnoteReference(_) => unimplemented!(),
 			Event::SoftBreak => write!(out, " "),
 			Event::HardBreak => write!(out, "<br/>"),
@@ -264,7 +264,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 			if first == "std" || first == "alloc" || first == "core" {
 				links.insert(
 					link,
-					format!("https://doc.rust-lang.org/stable/std/?search={}", search)
+					format!("https://doc.rust-lang.org/stable/std/?search={search}")
 				);
 			} else if path.segments.len() > 1 {
 				let (crate_name, crate_ver) = input
@@ -275,30 +275,24 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				links.insert(
 					link,
 					format!(
-						"https://docs.rs/{}/{}/{}/?search={}",
-						crate_name,
-						crate_ver,
+						"https://docs.rs/{crate_name}/{crate_ver}/{}/?search={search}",
 						crate_name.replace("-", "_"),
-						search
 					)
 				);
 			} else if RUST_PRIMITIVES.contains(&first.as_str()) {
 				links.insert(
 					link,
-					format!(
-						"https://doc.rust-lang.org/stable/std/primitive.{}.html",
-						first
-					)
+					format!("https://doc.rust-lang.org/stable/std/primitive.{first}.html",)
 				);
 			} else {
 				let (crate_name, crate_ver) = input
 					.dependencies
 					.get(&first)
-					.map(|(name, ver)| (name.as_str(), format!("/{}", ver)))
+					.map(|(name, ver)| (name.as_str(), format!("/{ver}")))
 					.unwrap_or((&first, String::new()));
 				links.insert(
 					link,
-					format!("https://crates.io/crates/{}{}", crate_name, crate_ver)
+					format!("https://crates.io/crates/{crate_name}{crate_ver}")
 				);
 			}
 		}
