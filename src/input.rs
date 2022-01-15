@@ -279,6 +279,7 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 	let mut scope = Scope::prelude(manifest.edition());
 
 	for i in &file.items {
+		let mut is_macro = false;
 		let (ident, path) = match i {
 			Item::Const(i) => item_ident!(crate_name, &i.ident),
 			Item::Enum(i) => item_ident!(crate_name, &i.ident),
@@ -287,9 +288,13 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 			},
 			Item::Fn(i) => item_ident!(crate_name, &i.sig.ident),
 			Item::Macro(i) if i.ident.is_some() => {
+				is_macro = true;
 				item_ident!(crate_name, i.ident.as_ref().unwrap())
 			},
-			Item::Macro2(i) => item_ident!(crate_name, &i.ident),
+			Item::Macro2(i) => {
+				is_macro = true;
+				item_ident!(crate_name, &i.ident)
+			},
 			Item::Mod(i) => item_ident!(crate_name, &i.ident),
 			Item::Static(i) => item_ident!(crate_name, &i.ident),
 			Item::Struct(i) => item_ident!(crate_name, &i.ident),
@@ -303,6 +308,9 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 			},
 			_ => continue
 		};
+		if is_macro {
+			scope.insert(format!("{ident}!"), path.clone());
+		}
 		scope.insert(ident.to_string(), path);
 	}
 
