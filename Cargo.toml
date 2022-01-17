@@ -21,7 +21,7 @@ itertools = "0.10"
 pulldown-cmark = { version = "0.9", default-features = false }
 semver = "1.0"
 sha2 = "0.10.1"
-siphasher = "0.3.7"
+siphasher = "0.3.8"
 syn = { version = "1.0.85", features = ["full", "parsing"], default-features = false }
 tera = { git = "https://github.com/msrd0/tera", rev = "e636269b1ce7833811872a91cdede34ddd0853d2", features = ["builtins_urlencode"], default-features = false }
 unindent = "0.1.7"
