@@ -31,14 +31,17 @@ const RUST_PRIMITIVES: &[&str] = &[
 ];
 
 impl Scope {
-	fn resolve(&self, path: String) -> String {
+	fn resolve(&self, crate_name: &str, path: String) -> String {
 		if path.starts_with("::") {
 			return path;
 		}
 		let mut segments = path.split("::").collect::<Vec<_>>();
+		if segments[0] == "crate" {
+			segments[0] = crate_name;
+		}
 		if self.scope.contains_key(segments[0]) {
 			segments[0] = &self.scope[segments[0]];
-			return self.resolve(segments.join("::"));
+			return self.resolve(crate_name, segments.join("::"));
 		}
 		path
 	}
@@ -246,7 +249,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 		if href.starts_with('`') && href.ends_with('`') {
 			href = href[1..href.len() - 1].to_owned();
 		}
-		href = input.scope.resolve(href);
+		href = input.scope.resolve(&input.crate_name, href);
 		if let Ok(path) = syn::parse_str::<Path>(&href) {
 			let first = path
 				.segments
@@ -257,7 +260,10 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 			let search = path
 				.segments
 				.iter()
-				.map(|segment| segment.ident.to_string())
+				.filter_map(|segment| match segment.ident.to_string() {
+					ident if ident == "crate" => None,
+					ident => Some(ident)
+				})
 				.join("::");
 
 			// TODO more sophisticated link generation
@@ -265,6 +271,19 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				links.insert(
 					link,
 					format!("https://doc.rust-lang.org/stable/std/?search={search}")
+				);
+			} else if first == "crate" {
+				let (crate_name, crate_ver) = input
+					.dependencies
+					.get(&input.crate_name)
+					.map(|(name, ver)| (name.as_str(), ver.to_string()))
+					.unwrap_or((&input.crate_name, "latest".to_string()));
+				links.insert(
+					link,
+					format!(
+						"https://docs.rs/{crate_name}/{crate_ver}/{}/?search={search}",
+						crate_name.replace("-", "_"),
+					)
 				);
 			} else if path.segments.len() > 1 {
 				let (crate_name, crate_ver) = input
@@ -405,6 +424,10 @@ mod tests {
 	test_input!(test_tag_link_reference_unknown(
 		"[a][b]",
 		"[a][__link0]\n\n\n [__link0]: https://crates.io/crates/b\n"
+	));
+	test_input!(test_tag_link_reference_crate(
+		"[a][crate::b]",
+		"[a][__link0]\n\n\n [__link0]: https://docs.rs/foo/latest/foo/?search=b\n"
 	));
 	test_input!(test_tag_link_collapsed(
 		"[a][]\n\n [a]: https://example.org",
