@@ -52,7 +52,7 @@ readme:
 This project adheres to semantic versioning. All versions will be tested against the latest stable rust version at the time of the release. All non-bugfix changes to the rustdoc input processing and markdown output or the default readme template are considered breaking changes, as well as any non-backwards-compatible changes to the command-line arguments or to these stability guarantees. All other changes, including any changes to the Rust code, or bumping the MSRV, are not considered breaking changes.
 
 
- [__cargo_doc2readme_dependencies_hash]: 661890B3200DC7162E31CCC9DFB9B1516DD34C0E7364BA2B3A59E6B8881340E4
+ [__cargo_doc2readme_dependencies_hash]: 0B01E39710F6EA2CFA88D57259F9C0D036013B841FABF5AF63CB653265FD7129
  [__link0]: https://github.com
  [__link1]: https://crates.io
  [__link2]: https://github.com/livioribeiro/cargo-readme
