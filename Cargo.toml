@@ -13,7 +13,7 @@ readme = "README.md"
 include = ["src/**/*", "Cargo.lock", "README.md", "LICENSE"]
 
 [dependencies]
-anyhow = "1.0.54"
+anyhow = "1.0.53"
 cargo = { version = "0.59.0", features = ["openssl"] }
 clap = { version = "3.0", features = ["derive"] }
 git2-curl = "0.14.1"
