@@ -24,7 +24,7 @@ sha2 = "0.10"
 siphasher = "0.3.9"
 syn = { version = "1.0.86", features = ["full", "parsing"], default-features = false }
 tera = { git = "https://github.com/msrd0/tera", rev = "e636269b1ce7833811872a91cdede34ddd0853d2", features = ["builtins_urlencode"], default-features = false }
-unindent = "0.1.8"
+unindent = "0.1.7"
 url = "2.2"
 
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
