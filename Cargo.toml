@@ -32,7 +32,7 @@ pulldown-cmark = { version = "0.9", default-features = false, features = ["simd"
 
 [dev-dependencies]
 indoc = "1.0"
-pretty_assertions = "1.0"
+pretty_assertions = "1.2"
 
 [profile.release]
 lto = true
