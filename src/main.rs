@@ -156,7 +156,8 @@ fn main() {
 		.path()
 		.expect("Target does not have a source file");
 	let code = if args.expand_macros {
-		CrateCode::read_expansion(manifest_path.as_path()).expect("Failed to read crate code")
+		CrateCode::read_expansion(manifest_path.as_path(), target)
+			.expect("Failed to read crate code")
 	} else {
 		CrateCode::read_from_disk(file).expect("Failed to read crate code")
 	};

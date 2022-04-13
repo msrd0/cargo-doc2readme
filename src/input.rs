@@ -1,5 +1,5 @@
 use anyhow::{bail, Context};
-use cargo::core::{Edition, Manifest, Registry, Summary};
+use cargo::core::{Edition, Manifest, Registry, Summary, Target, TargetKind};
 use semver::Version;
 use sha2::{
 	digest::generic_array::{typenum::U32, GenericArray},
@@ -108,24 +108,31 @@ impl CrateCode {
 		Ok(CrateCode(buf))
 	}
 
-	pub(crate) fn read_expansion<P>(manifest_path: &P) -> anyhow::Result<CrateCode>
+	pub(crate) fn read_expansion<P>(manifest_path: &P, target: &Target) -> anyhow::Result<CrateCode>
 	where
 		P: AsRef<Path> + ?Sized
 	{
+		let mut cmd = Command::new("cargo");
+		cmd.arg("+nightly").arg("rustc").arg(format!(
+			"--manifest-path={}",
+			manifest_path.as_ref().display()
+		));
+		match target.kind() {
+			TargetKind::Lib(_) => {
+				cmd.arg("--lib");
+			},
+			TargetKind::Bin => {
+				cmd.arg("--bin").arg(target.name());
+			},
+			_ => {}
+		};
+		cmd.arg("--").arg("-Zunpretty=expanded");
+
 		let Output {
 			stdout,
 			stderr,
 			status
-		} = Command::new("cargo")
-			.arg("+nightly")
-			.arg("rustc")
-			.arg(format!(
-				"--manifest-path={}",
-				manifest_path.as_ref().display()
-			))
-			.arg("--")
-			.arg("-Zunpretty=expanded")
-			.output()
+		} = cmd.output()
 			.context("Failed to run cargo to expand crate content")?;
 
 		if !status.success() {
