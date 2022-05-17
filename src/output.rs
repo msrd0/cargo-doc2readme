@@ -52,11 +52,15 @@ impl Scope {
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct DependencyHash(u8, BTreeSet<(String, Option<Version>, Option<String>)>);
+struct DependencyHash(u8, BTreeSet<(String, Option<Version>, Option<String>)>);
 
 impl DependencyHash {
 	fn new() -> Self {
 		Self(1, BTreeSet::new())
+	}
+
+	fn is_empty(&self) -> bool {
+		self.1.is_empty()
 	}
 
 	fn add_dep(&mut self, crate_name: String, version: Option<Version>, lib_name: String) {
@@ -345,12 +349,17 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 	}
 
 	let mut readme_links = String::new();
-	writeln!(
-		readme_links,
-		" [__cargo_doc2readme_dependencies_hash]: {}",
-		base64::encode_config(&serde_cbor::to_vec(&dependency_hash).unwrap(), URL_SAFE_NO_PAD)
-	)
-	.unwrap();
+	if !dependency_hash.is_empty() {
+		writeln!(
+			readme_links,
+			" [__cargo_doc2readme_dependencies_hash]: {}",
+			base64::encode_config(
+				&serde_cbor::to_vec(&dependency_hash).unwrap(),
+				URL_SAFE_NO_PAD
+			)
+		)
+		.unwrap();
+	}
 	for (name, href) in links {
 		// unwrap: writing to a String never fails
 		writeln!(readme_links, " [{}]: {}", name, href).unwrap();
@@ -394,7 +403,6 @@ mod tests {
 					repository: None,
 					license: None,
 					rustdoc: $input.into(),
-					dependencies_hash: None,
 					dependencies: HashMap::new(),
 					scope: Scope::prelude(Edition2018)
 				};
@@ -447,11 +455,11 @@ mod tests {
 	));
 	test_input!(test_tag_link_reference_unknown(
 		"[a][b]",
-		"[a][__link0]\n\n\n [__link0]: https://crates.io/crates/b\n"
+		"[a][__link0]\n\n\n [__cargo_doc2readme_dependencies_hash]: ggGBg2Fi9vY\n [__link0]: https://crates.io/crates/b\n"
 	));
 	test_input!(test_tag_link_reference_crate(
 		"[a][crate::b]",
-		"[a][__link0]\n\n\n [__link0]: https://docs.rs/foo/latest/foo/?search=b\n"
+		"[a][__link0]\n\n\n [__cargo_doc2readme_dependencies_hash]: ggGBg2Nmb2_29g\n [__link0]: https://docs.rs/foo/latest/foo/?search=b\n"
 	));
 	test_input!(test_tag_link_collapsed(
 		"[a][]\n\n [a]: https://example.org",
@@ -459,7 +467,7 @@ mod tests {
 	));
 	test_input!(test_tag_link_collapsed_unknown(
 		"[a][]",
-		"[a][__link0]\n\n\n [__link0]: https://crates.io/crates/a\n"
+		"[a][__link0]\n\n\n [__cargo_doc2readme_dependencies_hash]: ggGBg2Fh9vY\n [__link0]: https://crates.io/crates/a\n"
 	));
 	test_input!(test_tag_link_shortcut(
 		"[a]\n\n [a]: https://example.org",
@@ -467,7 +475,7 @@ mod tests {
 	));
 	test_input!(test_tag_link_shortcut_unknown(
 		"[a]",
-		"[a][__link0]\n\n\n [__link0]: https://crates.io/crates/a\n"
+		"[a][__link0]\n\n\n [__cargo_doc2readme_dependencies_hash]: ggGBg2Fh9vY\n [__link0]: https://crates.io/crates/a\n"
 	));
 	test_input!(test_tag_link_autolink(
 		"<https://example.org>",
