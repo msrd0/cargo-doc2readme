@@ -14,14 +14,16 @@ include = ["src/**/*", "Cargo.lock", "README.md", "LICENSE"]
 
 [dependencies]
 anyhow = "1.0.53"
+base64 = "0.13"
 cargo = { version = "0.61.0", features = ["openssl"] }
 clap = { version = "3.1", features = ["derive"] }
+either = "1.6"
 git2-curl = "0.14.1"
 itertools = "0.10"
 pulldown-cmark = { version = "0.9", default-features = false }
 semver = "1.0"
-sha2 = "0.10"
-siphasher = "0.3.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_cbor = "0.11.2"
 syn = { version = "1.0.95", features = ["full", "parsing"], default-features = false }
 tera = { git = "https://github.com/msrd0/tera", rev = "e636269b1ce7833811872a91cdede34ddd0853d2", features = ["builtins_urlencode"], default-features = false }
 unindent = "0.1.9"

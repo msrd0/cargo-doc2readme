@@ -1,11 +1,15 @@
 use crate::input::{InputFile, Scope};
 use anyhow::anyhow;
+use base64::URL_SAFE_NO_PAD;
+use either::Either;
 use itertools::Itertools;
 use pulldown_cmark::{
 	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
 };
+use semver::Version;
+use serde::{Deserialize, Serialize};
 use std::{
-	collections::{BTreeMap, VecDeque},
+	collections::{BTreeMap, BTreeSet, VecDeque},
 	fmt::{self, Write as _},
 	io
 };
@@ -44,6 +48,23 @@ impl Scope {
 			return self.resolve(crate_name, segments.join("::"));
 		}
 		path
+	}
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct DependencyHash(u8, BTreeSet<(String, Option<Version>, Option<String>)>);
+
+impl DependencyHash {
+	fn new() -> Self {
+		Self(1, BTreeSet::new())
+	}
+
+	fn add_dep(&mut self, crate_name: String, version: Option<Version>, lib_name: String) {
+		self.1.insert(if lib_name == crate_name {
+			(crate_name, version, None)
+		} else {
+			(crate_name, version, Some(lib_name))
+		});
 	}
 }
 
@@ -244,6 +265,27 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 		}?;
 	}
 
+	let mut dependency_hash = DependencyHash::new();
+	let mut build_link = |crate_name: &str, crate_ver: Option<&Version>, search: Option<&str>| {
+		let lib_name = crate_name.replace("-", "_");
+		let link = match search {
+			Some(search) => format!(
+				"https://docs.rs/{crate_name}/{}/{lib_name}/?search={search}",
+				crate_ver
+					.map(Either::Left)
+					.unwrap_or(Either::Right("latest"))
+			),
+			None => format!(
+				"https://crates.io/crates/{crate_name}{}",
+				crate_ver
+					.map(|ver| Either::Left(format!("/{ver}")))
+					.unwrap_or(Either::Right(""))
+			)
+		};
+		dependency_hash.add_dep(crate_name.to_owned(), crate_ver.cloned(), lib_name);
+		link
+	};
+
 	for link in links.keys().map(|l| l.to_owned()).collect::<Vec<_>>() {
 		let mut href = links[&link].to_owned();
 		if href.starts_with('`') && href.ends_with('`') {
@@ -276,28 +318,16 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				let (crate_name, crate_ver) = input
 					.dependencies
 					.get(&input.crate_name)
-					.map(|(name, ver)| (name.as_str(), ver.to_string()))
-					.unwrap_or((&input.crate_name, "latest".to_string()));
-				links.insert(
-					link,
-					format!(
-						"https://docs.rs/{crate_name}/{crate_ver}/{}/?search={search}",
-						crate_name.replace("-", "_"),
-					)
-				);
+					.map(|(name, ver)| (name.as_str(), Some(ver)))
+					.unwrap_or((&input.crate_name, None));
+				links.insert(link, build_link(crate_name, crate_ver, Some(&search)));
 			} else if path.segments.len() > 1 {
 				let (crate_name, crate_ver) = input
 					.dependencies
 					.get(&first)
-					.map(|(name, ver)| (name.as_str(), ver.to_string()))
-					.unwrap_or((&first, "latest".to_string()));
-				links.insert(
-					link,
-					format!(
-						"https://docs.rs/{crate_name}/{crate_ver}/{}/?search={search}",
-						crate_name.replace("-", "_"),
-					)
-				);
+					.map(|(name, ver)| (name.as_str(), Some(ver)))
+					.unwrap_or((&first, None));
+				links.insert(link, build_link(crate_name, crate_ver, Some(&search)));
 			} else if RUST_PRIMITIVES.contains(&first.as_str()) {
 				links.insert(
 					link,
@@ -307,26 +337,20 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				let (crate_name, crate_ver) = input
 					.dependencies
 					.get(&first)
-					.map(|(name, ver)| (name.as_str(), format!("/{ver}")))
-					.unwrap_or((&first, String::new()));
-				links.insert(
-					link,
-					format!("https://crates.io/crates/{crate_name}{crate_ver}")
-				);
+					.map(|(name, ver)| (name.as_str(), Some(ver)))
+					.unwrap_or((&first, None));
+				links.insert(link, build_link(crate_name, crate_ver, None));
 			}
 		}
 	}
 
 	let mut readme_links = String::new();
-	if let Some(hash) = input.dependencies_hash {
-		// unwrap: writing to a String never fails
-		writeln!(
-			readme_links,
-			" [__cargo_doc2readme_dependencies_hash]: {:X}",
-			hash
-		)
-		.unwrap();
-	}
+	writeln!(
+		readme_links,
+		" [__cargo_doc2readme_dependencies_hash]: {}",
+		base64::encode_config(&serde_cbor::to_vec(&dependency_hash).unwrap(), URL_SAFE_NO_PAD)
+	)
+	.unwrap();
 	for (name, href) in links {
 		// unwrap: writing to a String never fails
 		writeln!(readme_links, " [{}]: {}", name, href).unwrap();
