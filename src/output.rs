@@ -1,13 +1,14 @@
 use crate::input::{InputFile, Scope};
 use anyhow::anyhow;
 use base64::URL_SAFE_NO_PAD;
+use blake3::Hash;
 use either::Either;
 use itertools::Itertools;
 use pulldown_cmark::{
 	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
 };
 use semver::Version;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::{
 	collections::{BTreeMap, BTreeSet, VecDeque},
 	fmt::{self, Write as _},
@@ -51,20 +52,69 @@ impl Scope {
 	}
 }
 
-#[derive(Deserialize, Serialize)]
-struct DependencyHash(u8, BTreeSet<(String, Option<Version>, Option<String>)>);
+struct HashDef;
+
+impl HashDef {
+	fn serialize<S: Serializer>(this: &Hash, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer
+	{
+		let hash = this.as_bytes();
+		let parts = (
+			u64::from_be_bytes((&hash[0..8]).try_into().unwrap()),
+			u64::from_be_bytes((&hash[8..16]).try_into().unwrap()),
+			u64::from_be_bytes((&hash[16..24]).try_into().unwrap()),
+			u64::from_be_bytes((&hash[24..32]).try_into().unwrap())
+		);
+		parts.serialize(serializer)
+	}
+}
+
+#[derive(Serialize)]
+struct DependencyHash {
+	/// The version of this dependency hash. Increase whenever the format of this struct.
+	#[serde(rename = "v")]
+	hash_version: u8,
+
+	/// The version of the markdown output. If there are significant changes made to the
+	/// markdown output that require to re-run this tool eventhough none of the inputs
+	/// has changed, this version should be increased.
+	#[serde(rename = "m")]
+	markdown_version: u8,
+
+	/// The blake3 hash of the template file.
+	#[serde(rename = "t", with = "HashDef")]
+	template_hash: Hash,
+
+	/// The blake3 hash of the input rustdoc.
+	#[serde(rename = "r", with = "HashDef")]
+	rustdoc_hash: Hash,
+
+	/// The versions of dependencies that are used for link generation. The first entry
+	/// of the tuple is the dependency name on crates.io, the second is the version,
+	/// and the third is the dependency name as seen in Rust code (or missing if it is
+	/// equivalent to the dependency name on crates.io).
+	#[serde(rename = "d")]
+	dependencies: BTreeSet<(String, Option<Version>, Option<String>)>
+}
 
 impl DependencyHash {
-	fn new() -> Self {
-		Self(1, BTreeSet::new())
+	fn new(template_hash: Hash, rustdoc_hash: Hash) -> Self {
+		Self {
+			hash_version: 0,
+			markdown_version: 0,
+			template_hash: template_hash.into(),
+			rustdoc_hash: rustdoc_hash.into(),
+			dependencies: BTreeSet::new()
+		}
 	}
 
 	fn is_empty(&self) -> bool {
-		self.1.is_empty()
+		self.dependencies.is_empty()
 	}
 
 	fn add_dep(&mut self, crate_name: String, version: Option<Version>, lib_name: String) {
-		self.1.insert(if lib_name == crate_name {
+		self.dependencies.insert(if lib_name == crate_name {
 			(crate_name, version, None)
 		} else {
 			(crate_name, version, Some(lib_name))
@@ -269,7 +319,10 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 		}?;
 	}
 
-	let mut dependency_hash = DependencyHash::new();
+	let mut dependency_hash = DependencyHash::new(
+		blake3::hash(input.rustdoc.as_bytes()),
+		blake3::hash(template.as_bytes())
+	);
 	let mut build_link = |crate_name: &str, crate_ver: Option<&Version>, search: Option<&str>| {
 		let lib_name = crate_name.replace("-", "_");
 		let link = match search {
