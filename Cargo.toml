@@ -15,10 +15,10 @@ include = ["src/**/*", "Cargo.lock", "README.md", "LICENSE"]
 [dependencies]
 anyhow = "1.0.53"
 base64 = "0.13"
-cargo = { version = "0.61.0", features = ["openssl"] }
+cargo = { version = "0.62", features = ["openssl"] }
 clap = { version = "3.1", features = ["derive"] }
 either = "1.6"
-git2-curl = "0.14.1"
+git2-curl = "0.15"
 itertools = "0.10"
 pulldown-cmark = { version = "0.9", default-features = false }
 semver = "1.0"

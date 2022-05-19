@@ -6,7 +6,8 @@ use std::{
 	fs::File,
 	io::{self, Read, Write},
 	path::Path,
-	process::{Command, Output}
+	process::{Command, Output},
+	task::Poll
 };
 use syn::{Attribute, Item, ItemUse, Lit, LitStr, Meta, UsePath, UseTree};
 use unindent::Unindent;
@@ -230,23 +231,34 @@ fn resolve_dependencies(
 		(manifest.name().to_string(), manifest.version().clone())
 	);
 
-	for dep in manifest.dependencies() {
-		let dep_name = dep.name_in_toml().to_string().replace('-', "_");
-		let mut f = |sum: Summary| {
-			if deps
-				.get(&dep_name)
-				.map(|(_, ver)| ver < sum.version())
-				.unwrap_or(true)
-			{
-				deps.insert(
-					dep_name.clone(),
-					(sum.name().to_string(), sum.version().clone())
-				);
-			}
-		};
-		registry
-			.query(dep, &mut f, false)
-			.expect("Failed to resolve dependency");
+	let pending_deps = manifest
+		.dependencies()
+		.into_iter()
+		.map(|dep| {
+			let dep_name = dep.name_in_toml().to_string().replace('-', "_");
+			let mut f = |sum: Summary| {
+				if deps
+					.get(&dep_name)
+					.map(|(_, ver)| ver < sum.version())
+					.unwrap_or(true)
+				{
+					deps.insert(
+						dep_name.clone(),
+						(sum.name().to_string(), sum.version().clone())
+					);
+				}
+			};
+			registry.query(dep, &mut f, false)
+		})
+		.collect::<Vec<_>>();
+	registry
+		.block_until_ready()
+		.expect("Failed to wait for dependency resolver");
+	for dep in pending_deps {
+		match dep {
+			Poll::Ready(dep) => dep.expect("Failed to resolve dependency"),
+			_ => unreachable!("We've waited for the dependency to be ready")
+		}
 	}
 
 	Ok(deps)
