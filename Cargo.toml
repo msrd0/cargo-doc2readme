@@ -21,6 +21,7 @@ clap = { version = "3.1", features = ["derive"] }
 either = "1.6"
 git2-curl = "0.15"
 itertools = "0.10"
+monostate = "0.1"
 pulldown-cmark = { version = "0.9", default-features = false }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }

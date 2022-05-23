@@ -239,6 +239,7 @@ dependencies = [
  "git2-curl",
  "indoc",
  "itertools",
+ "monostate",
  "pretty_assertions",
  "pulldown-cmark",
  "semver",
@@ -952,6 +953,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9f1c5b025cda876f66ef43a113f91ebc9f4ccef34843000e0adf6ebbab84e21"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "monostate"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2d90ab1b1135f4f5dffd0a99bfa56ea7bfae83b807e77db843cba631c047a85"
+dependencies = [
+ "monostate-impl",
+ "serde",
+]
+
+[[package]]
+name = "monostate-impl"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b546b44458f9128ccde8d52845ef3a0be988a7d0d0c1463f43e05d4c510989da"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

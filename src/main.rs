@@ -68,6 +68,7 @@ use std::{borrow::Cow, env, fs::File, io::Read, path::PathBuf};
 
 use crate::input::CrateCode;
 
+mod depinfo;
 mod input;
 mod output;
 
