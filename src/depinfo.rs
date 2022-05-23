@@ -2,7 +2,7 @@ use base64::URL_SAFE_NO_PAD;
 use blake3::Hash;
 use monostate::MustBe;
 use semver::Version;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
 	collections::{BTreeMap, BTreeSet},
 	fmt::Display
@@ -11,7 +11,20 @@ use std::{
 struct HashDef;
 
 impl HashDef {
-	fn serialize<S: Serializer>(this: &Hash, serializer: S) -> Result<S::Ok, S::Error>
+	fn deserialize<'de, D>(deserializer: D) -> Result<Hash, D::Error>
+	where
+		D: Deserializer<'de>
+	{
+		let parts = <(u64, u64, u64, u64)>::deserialize(deserializer)?;
+		let mut hash = [0u8; 32];
+		hash[0..8].clone_from_slice(&parts.0.to_be_bytes());
+		hash[8..16].clone_from_slice(&parts.1.to_be_bytes());
+		hash[16..24].clone_from_slice(&parts.2.to_be_bytes());
+		hash[24..32].clone_from_slice(&parts.3.to_be_bytes());
+		Ok(hash.into())
+	}
+
+	fn serialize<S>(this: &Hash, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer
 	{
@@ -26,13 +39,34 @@ impl HashDef {
 	}
 }
 
-#[derive(Serialize)]
-struct DependencyInfoV1 {
-	/// The version of this dependency hash. Increase whenever the format of this struct
-	/// is changed.
-	#[serde(rename = "v")]
-	hash_version: MustBe!(1u8),
+#[derive(Deserialize, Eq, PartialEq, PartialOrd, Ord, Serialize)]
+struct Dependency(
+	String,
+	Option<Version>,
+	#[serde(skip_serializing_if = "Option::is_none")] Option<String>
+);
 
+impl Dependency {
+	fn new(crate_name: String, version: Option<Version>, lib_name: String) -> Self {
+		let lib_name = (lib_name != crate_name).then(|| lib_name);
+		Self(crate_name, version, lib_name)
+	}
+
+	fn crate_name(&self) -> &str {
+		&self.0
+	}
+
+	fn version(&self) -> Option<&Version> {
+		self.1.as_ref()
+	}
+
+	fn lib_name(&self) -> &str {
+		self.2.as_deref().unwrap_or_else(|| self.crate_name())
+	}
+}
+
+#[derive(Deserialize, Serialize)]
+struct DependencyInfoV1 {
 	/// The version of the markdown output. If there are significant changes made to the
 	/// markdown output that require to re-run this tool eventhough none of the inputs
 	/// has changed, this version should be increased.
@@ -52,19 +86,18 @@ struct DependencyInfoV1 {
 	/// and the third is the dependency name as seen in Rust code (or missing if it is
 	/// equivalent to the dependency name on crates.io).
 	#[serde(rename = "d")]
-	dependencies: BTreeSet<(String, Option<Version>, Option<String>)>
+	dependencies: BTreeSet<Dependency>
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(untagged)]
 enum DependencyInfoImpl {
-	V1(DependencyInfoV1)
+	V1(MustBe!(1u8), DependencyInfoV1)
 }
 
 impl DependencyInfoImpl {
 	fn new(markdown_version: u8, template: &str, rustdoc: &str) -> Self {
-		Self::V1(DependencyInfoV1 {
-			hash_version: Default::default(),
+		Self::V1(Default::default(), DependencyInfoV1 {
 			markdown_version,
 			template_hash: blake3::hash(template.as_bytes()),
 			rustdoc_hash: blake3::hash(rustdoc.as_bytes()),
@@ -74,51 +107,43 @@ impl DependencyInfoImpl {
 
 	fn markdown_version(&self) -> u8 {
 		match self {
-			Self::V1(info) => info.markdown_version
+			Self::V1(_, info) => info.markdown_version
 		}
 	}
 
 	fn is_template_up2date(&self, template: &str) -> bool {
 		match self {
-			Self::V1(info) => info.template_hash == blake3::hash(template.as_bytes())
+			Self::V1(_, info) => info.template_hash == blake3::hash(template.as_bytes())
 		}
 	}
 
 	fn is_rustdoc_up2date(&self, rustdoc: &str) -> bool {
 		match self {
-			Self::V1(info) => info.rustdoc_hash == blake3::hash(rustdoc.as_bytes())
+			Self::V1(_, info) => info.rustdoc_hash == blake3::hash(rustdoc.as_bytes())
 		}
 	}
 
 	fn is_empty(&self) -> bool {
 		match self {
-			Self::V1(info) => info.dependencies.is_empty()
+			Self::V1(_, info) => info.dependencies.is_empty()
 		}
 	}
 
 	fn dependencies(&self) -> BTreeMap<&str, (Option<&Version>, &str)> {
 		match self {
-			Self::V1(info) => info
+			Self::V1(_, info) => info
 				.dependencies
 				.iter()
-				.map(|(crate_name, version, lib_name)| {
-					(
-						crate_name.as_str(),
-						(version.as_ref(), lib_name.as_deref().unwrap_or(crate_name))
-					)
-				})
+				.map(|dep| (dep.crate_name(), (dep.version(), dep.lib_name())))
 				.collect()
 		}
 	}
 
 	fn add_dependency(&mut self, crate_name: String, version: Option<Version>, lib_name: String) {
 		match self {
-			Self::V1(info) => {
-				info.dependencies.insert(if lib_name == crate_name {
-					(crate_name, version, None)
-				} else {
-					(crate_name, version, Some(lib_name))
-				});
+			Self::V1(_, info) => {
+				info.dependencies
+					.insert(Dependency::new(crate_name, version, lib_name));
 			}
 		}
 	}
@@ -131,8 +156,17 @@ impl DependencyInfo {
 		Self(DependencyInfoImpl::new(markdown_version, template, rustdoc))
 	}
 
+	pub fn decode(data: String) -> anyhow::Result<Self> {
+		let bytes = base64::decode_config(data, URL_SAFE_NO_PAD)?;
+		Ok(Self(serde_cbor::from_slice(&bytes)?))
+	}
+
 	pub fn encode(&self) -> impl Display {
 		base64::encode_config(&serde_cbor::to_vec(&self.0).unwrap(), URL_SAFE_NO_PAD)
+	}
+
+	pub fn check_input(&self, template: &str, rustdoc: &str) -> bool {
+		self.0.is_template_up2date(template) && self.0.is_rustdoc_up2date(rustdoc)
 	}
 
 	pub fn is_empty(&self) -> bool {
@@ -146,5 +180,75 @@ impl DependencyInfo {
 		lib_name: String
 	) {
 		self.0.add_dependency(crate_name, version, lib_name)
+	}
+
+	pub fn check_dependency(
+		&self,
+		crate_name: &str,
+		version: Option<&Version>,
+		lib_name: &str
+	) -> bool {
+		// check that dependency is present
+		let dependencies = self.0.dependencies();
+		let (dep_ver, dep_lib_name) = match dependencies.get(crate_name) {
+			Some(dep) => dep,
+			None => return false
+		};
+
+		// check that the lib names match
+		if lib_name != *dep_lib_name {
+			return false;
+		}
+
+		// check that the versions are compatible
+		// if the requested version is None, we accept all versions
+		// otherwise, we expect a concrete version that is semver-compatible
+		if let Some(ver) = version {
+			match dep_ver {
+				None => return false,
+				Some(dep_ver) if !(*dep_ver >= ver) => return false,
+				_ => {}
+			}
+		}
+
+		return true;
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::DependencyInfo;
+	use semver::Version;
+
+	const MARKDOWN_VERSION: u8 = 0;
+	const TEMPLATE: &str = include_str!("README.j2");
+	const RUSTDOC: &str = "This is the best crate ever!";
+
+	#[test]
+	fn test_dep_info() {
+		let mut dep_info = DependencyInfo::new(MARKDOWN_VERSION, TEMPLATE, RUSTDOC);
+
+		assert!(dep_info.check_input(TEMPLATE, RUSTDOC));
+		assert!(!dep_info.check_input(TEMPLATE, ""));
+		assert!(!dep_info.check_input("", RUSTDOC));
+
+		// check that it is initially empty
+		assert!(dep_info.is_empty());
+		assert!(!dep_info.check_dependency("anyhow", None, "anyhow"));
+
+		let version_1_0_0: Version = "1.0.0".parse().unwrap();
+		let version_1_0_1: Version = "1.0.1".parse().unwrap();
+		let version_1_1_0: Version = "1.1.0".parse().unwrap();
+
+		dep_info.add_dependency(
+			"anyhow".into(),
+			Some(version_1_0_1.clone()),
+			"anyhow".into()
+		);
+		assert!(dep_info.check_dependency("anyhow", None, "anyhow"));
+		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_0), "anyhow"));
+		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_1), "anyhow"));
+		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_1_0), "anyhow"));
+		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_0_0), "any_how"));
 	}
 }
