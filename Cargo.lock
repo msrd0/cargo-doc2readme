@@ -239,6 +239,7 @@ dependencies = [
  "git2-curl",
  "indoc",
  "itertools",
+ "memchr",
  "monostate",
  "pretty_assertions",
  "pulldown-cmark",

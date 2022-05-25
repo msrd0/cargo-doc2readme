@@ -186,13 +186,14 @@ impl DependencyInfo {
 		&self,
 		crate_name: &str,
 		version: Option<&Version>,
-		lib_name: &str
+		lib_name: &str,
+		allow_missing: bool
 	) -> bool {
 		// check that dependency is present
 		let dependencies = self.0.dependencies();
 		let (dep_ver, dep_lib_name) = match dependencies.get(crate_name) {
 			Some(dep) => dep,
-			None => return false
+			None => return allow_missing
 		};
 
 		// check that the lib names match
@@ -234,7 +235,8 @@ mod tests {
 
 		// check that it is initially empty
 		assert!(dep_info.is_empty());
-		assert!(!dep_info.check_dependency("anyhow", None, "anyhow"));
+		assert!(!dep_info.check_dependency("anyhow", None, "anyhow", false));
+		assert!(dep_info.check_dependency("anyhow", None, "anyhow", true));
 
 		let version_1_0_0: Version = "1.0.0".parse().unwrap();
 		let version_1_0_1: Version = "1.0.1".parse().unwrap();
@@ -245,10 +247,10 @@ mod tests {
 			Some(version_1_0_1.clone()),
 			"anyhow".into()
 		);
-		assert!(dep_info.check_dependency("anyhow", None, "anyhow"));
-		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_0), "anyhow"));
-		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_1), "anyhow"));
-		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_1_0), "anyhow"));
-		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_0_0), "any_how"));
+		assert!(dep_info.check_dependency("anyhow", None, "anyhow", false));
+		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_0), "anyhow", false));
+		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_1), "anyhow", false));
+		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_1_0), "anyhow", false));
+		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_0_0), "any_how", false));
 	}
 }

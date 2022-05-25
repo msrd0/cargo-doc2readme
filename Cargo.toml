@@ -6,7 +6,7 @@ authors = ["Dominic <git@msrd0.de>"]
 categories = ["command-line-utilities", "development-tools", "development-tools::cargo-plugins"]
 keywords = ["cargo", "subcommand", "readme", "doc2readme", "rustdoc"]
 edition = "2021"
-rust-version = "1.58.0"
+rust-version = "1.61.0"
 repository = "https://github.com/msrd0/cargo-doc2readme"
 license = "Apache-2.0"
 readme = "README.md"
@@ -21,6 +21,7 @@ clap = { version = "3.1", features = ["derive"] }
 either = "1.6"
 git2-curl = "0.15"
 itertools = "0.10"
+memchr = "2.5"
 monostate = "0.1"
 pulldown-cmark = { version = "0.9", default-features = false }
 semver = "1.0"

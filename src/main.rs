@@ -64,7 +64,14 @@ use cargo::{
 	Config as CargoConfig
 };
 use clap::Parser;
-use std::{borrow::Cow, env, fs::File, io::Read, path::PathBuf};
+use std::{
+	borrow::Cow,
+	env,
+	fs::File,
+	io::{self, Read},
+	path::PathBuf,
+	process::ExitCode
+};
 
 mod depinfo;
 mod input;
@@ -110,7 +117,7 @@ struct CmdLine {
 	cmd: Subcommand
 }
 
-fn main() {
+fn main() -> ExitCode {
 	let args = match env::args().nth(1) {
 		Some(subcmd) if subcmd == "doc2readme" => match CmdLine::parse().cmd {
 			Subcommand::Doc2readme(args) => args
@@ -212,11 +219,33 @@ fn main() {
 	} else {
 		args.out
 	};
-	cargo_cfg.shell().status("Writing", out.display()).ok();
-	let mut out = File::create(out).expect("Unable to create output file");
-	output::emit(input_file, &template, &mut out).expect("Unable to write output file");
+
+	let exit_code = if args.check {
+		cargo_cfg.shell().status("Reading", out.display()).ok();
+		let check_ok = match File::open(&out) {
+			Ok(mut file) => verify::check_up2date(input_file, &template, &mut file)
+				.expect("Failed to check readme"),
+			Err(e) if e.kind() == io::ErrorKind::NotFound => {
+				cargo_cfg
+					.shell()
+					.error(&format!("File not found: {}", out.display()))
+					.ok();
+				false
+			},
+			Err(e) => panic!("Unable to open file {}: {e}", out.display())
+		};
+		check_ok
+			.then(|| ExitCode::SUCCESS)
+			.unwrap_or(ExitCode::FAILURE)
+	} else {
+		cargo_cfg.shell().status("Writing", out.display()).ok();
+		let mut out = File::create(&out).expect("Unable to create output file");
+		output::emit(input_file, &template, &mut out).expect("Unable to write output file");
+		ExitCode::SUCCESS
+	};
 
 	cargo_cfg.release_package_cache_lock();
+	exit_code
 }
 
 // Copied from cargo crate:
