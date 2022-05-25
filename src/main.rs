@@ -222,21 +222,22 @@ fn main() -> ExitCode {
 
 	let exit_code = if args.check {
 		cargo_cfg.shell().status("Reading", out.display()).ok();
-		let check_ok = match File::open(&out) {
-			Ok(mut file) => verify::check_up2date(input_file, &template, &mut file)
-				.expect("Failed to check readme"),
+		match File::open(&out) {
+			Ok(mut file) => {
+				let check = verify::check_up2date(input_file, &template, &mut file)
+					.expect("Failed to check readme");
+				check.print(cargo_cfg.shell());
+				check.into()
+			},
 			Err(e) if e.kind() == io::ErrorKind::NotFound => {
 				cargo_cfg
 					.shell()
 					.error(&format!("File not found: {}", out.display()))
 					.ok();
-				false
+				ExitCode::FAILURE
 			},
 			Err(e) => panic!("Unable to open file {}: {e}", out.display())
-		};
-		check_ok
-			.then(|| ExitCode::SUCCESS)
-			.unwrap_or(ExitCode::FAILURE)
+		}
 	} else {
 		cargo_cfg.shell().status("Writing", out.display()).ok();
 		let mut out = File::create(&out).expect("Unable to create output file");

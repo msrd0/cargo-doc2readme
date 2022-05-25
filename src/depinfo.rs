@@ -3,10 +3,7 @@ use blake3::Hash;
 use monostate::MustBe;
 use semver::Version;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::{
-	collections::{BTreeMap, BTreeSet},
-	fmt::Display
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 struct HashDef;
 
@@ -43,7 +40,7 @@ impl HashDef {
 struct Dependency(
 	String,
 	Option<Version>,
-	#[serde(skip_serializing_if = "Option::is_none")] Option<String>
+	#[serde(skip_serializing_if = "Option::is_none", default)] Option<String>
 );
 
 impl Dependency {
@@ -112,14 +109,16 @@ impl DependencyInfoImpl {
 	}
 
 	fn is_template_up2date(&self, template: &str) -> bool {
+		let hash = blake3::hash(template.as_bytes());
 		match self {
-			Self::V1(_, info) => info.template_hash == blake3::hash(template.as_bytes())
+			Self::V1(_, info) => info.template_hash == hash
 		}
 	}
 
 	fn is_rustdoc_up2date(&self, rustdoc: &str) -> bool {
+		let hash = blake3::hash(rustdoc.as_bytes());
 		match self {
-			Self::V1(_, info) => info.rustdoc_hash == blake3::hash(rustdoc.as_bytes())
+			Self::V1(_, info) => info.rustdoc_hash == hash
 		}
 	}
 
@@ -161,7 +160,7 @@ impl DependencyInfo {
 		Ok(Self(serde_cbor::from_slice(&bytes)?))
 	}
 
-	pub fn encode(&self) -> impl Display {
+	pub fn encode(&self) -> String {
 		base64::encode_config(&serde_cbor::to_vec(&self.0).unwrap(), URL_SAFE_NO_PAD)
 	}
 
@@ -219,6 +218,7 @@ impl DependencyInfo {
 #[cfg(test)]
 mod tests {
 	use super::DependencyInfo;
+	use base64::URL_SAFE_NO_PAD;
 	use semver::Version;
 
 	const MARKDOWN_VERSION: u8 = 0;
@@ -252,5 +252,15 @@ mod tests {
 		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_1), "anyhow", false));
 		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_1_0), "anyhow", false));
 		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_0_0), "any_how", false));
+
+		// check that encoding and decoding works as expected
+		let encoded = dep_info.encode();
+		println!(
+			"encoded: {}",
+			hex::encode_upper(base64::decode_config(&encoded, URL_SAFE_NO_PAD).unwrap())
+		);
+		let dep_info = DependencyInfo::decode(encoded).unwrap();
+		assert!(dep_info.check_input(TEMPLATE, RUSTDOC));
+		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_1), "anyhow", false));
 	}
 }

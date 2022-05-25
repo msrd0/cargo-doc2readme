@@ -237,6 +237,7 @@ dependencies = [
  "clap",
  "either",
  "git2-curl",
+ "hex 0.4.3",
  "indoc",
  "itertools",
  "memchr",

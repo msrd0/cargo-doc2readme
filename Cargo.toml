@@ -36,6 +36,7 @@ url = "2.2"
 pulldown-cmark = { version = "0.9", default-features = false, features = ["simd"] }
 
 [dev-dependencies]
+hex = "0.4.3"
 indoc = "=1.0.5"
 pretty_assertions = "1.0"
 
