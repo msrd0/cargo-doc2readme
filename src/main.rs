@@ -66,11 +66,12 @@ use cargo::{
 use clap::Parser;
 use std::{borrow::Cow, env, fs::File, io::Read, path::PathBuf};
 
-use crate::input::CrateCode;
-
 mod depinfo;
 mod input;
 mod output;
+mod verify;
+
+use input::CrateCode;
 
 #[derive(Parser)]
 enum Subcommand {
@@ -95,7 +96,12 @@ struct Args {
 	/// Use nightly rustc to expand macros prior to reading the source. This is necessary if you
 	/// use function-like macros in doc attributes, as introduced in Rust 1.54.
 	#[clap(long)]
-	expand_macros: bool
+	expand_macros: bool,
+
+	/// Verify that the output file is (reasonably) up to date, and fail
+	/// if it needs updating. The output file will not be changed.
+	#[clap(long)]
+	check: bool
 }
 
 #[derive(Parser)]
