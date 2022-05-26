@@ -1,8 +1,12 @@
-FROM alpine AS builder
+# we don't actually need the cross compiler, but this image happens to include the latest
+# stable rust compiler so we'll make use of that
+# alpine's edge branch unfortunately sometimes trails behind, be it because firefox doesn't
+# like building on the latest stable, or because they are waiting for another stable version
+# to branch off first
+FROM ghcr.io/msrd0/abuild-aarch64 AS builder
 
-RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >>/etc/apk/repositories
-RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/community" >>/etc/apk/repositories
-RUN apk add --no-cache cargo@edge curl-dev
+USER root
+RUN apk add --no-cache cargo curl-dev
 
 # pre-compile for cache reuse
 # I actually don't want the Cargo.lock file so that if it changes, only the dependency that changed needs to be
