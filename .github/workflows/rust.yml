@@ -11,13 +11,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
       
       - name: Get Rust Version
         id: rust-version
         run: echo "::set-output name=version::$(cargo -V | head -n1 | awk '{print $2}')"
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/git
@@ -33,7 +33,7 @@ jobs:
   rustfmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
@@ -44,7 +44,7 @@ jobs:
     needs: [test]
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Log In at ghcr.io
         run: echo "${{secrets.GITHUB_TOKEN}}" | docker login ghcr.io -u msrd0 --password-stdin
       - name: Build and Push image to ghcr.io
