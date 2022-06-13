@@ -43,3 +43,4 @@ pretty_assertions = "1.0"
 [profile.release]
 lto = true
 opt-level = "z"
+strip = true
