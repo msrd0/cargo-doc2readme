@@ -8,21 +8,13 @@ FROM ghcr.io/msrd0/abuild-aarch64 AS builder
 USER root
 RUN apk add --no-cache cargo curl-dev
 
-# pre-compile for cache reuse
-# I actually don't want the Cargo.lock file so that if it changes, only the dependency that changed needs to be
-# updated, not all dependencies
-RUN mkdir -p /src/src && echo 'fn main() {}' >/src/src/main.rs
 COPY Cargo.toml /src/
-WORKDIR /src/
-RUN cargo build --release
-
 COPY Cargo.lock /src/
 COPY src/ /src/src
-RUN touch src/main.rs \
- && cargo build --release --locked \
- && strip target/release/cargo-doc2readme
+RUN cargo build --release --locked
 
-# start in a clean alpine so that we don't include the crates.io registry and other large files in the final image
+# start in a clean alpine so that we don't include the crates.io registry and other large
+# files in the final image
 FROM alpine
 
 RUN apk add --no-cache cargo libcurl

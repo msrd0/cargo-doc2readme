@@ -50,19 +50,12 @@ jobs:
       - name: Build and Push image to ghcr.io
         run: |
           image="ghcr.io/msrd0/cargo-doc2readme"
-          cache="$image:_cache"
           tag="$image:$(git describe --tags)"
           
-          echo "==> Pulling old docker image to reuse cache"
-          docker pull $image || true
-          docker pull $cache || true
-          
           echo "==> Building docker image"
-          docker build . --pull --target builder --cache-from "$cache" --tag "$cache"
-          docker build . --pull --cache-from "$cache" --cache-from "$image" --tag "$image"
+          docker build . --pull --tag "$image"
           docker tag "$image" "$tag"
           
           echo "==> Pushing docker image"
           docker push "$tag"
           docker push "$image"
-          docker push "$cache"
