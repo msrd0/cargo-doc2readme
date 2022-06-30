@@ -11,6 +11,7 @@ RUN apk add --no-cache cargo curl-dev
 COPY Cargo.toml /src/
 COPY Cargo.lock /src/
 COPY src/ /src/src
+WORKDIR /src/
 RUN cargo build --release --locked
 
 # start in a clean alpine so that we don't include the crates.io registry and other large
