@@ -140,7 +140,13 @@ fn main() -> ExitCode {
 		.expect("Failed to read Cargo.toml")
 	{
 		(EitherManifest::Real(manifest), _) => manifest,
-		(EitherManifest::Virtual(_), _) => panic!("What on earth is a virtual manifest?")
+		(EitherManifest::Virtual(_), _) => {
+			cargo_cfg
+				.shell()
+				.error("Virtual manifests (i.e. pure workspace roots) are not supported.")
+				.unwrap();
+			return ExitCode::FAILURE;
+		}
 	};
 
 	// fix cargo being extremely verbose by default
