@@ -1,7 +1,8 @@
 #![warn(rust_2018_idioms, rustdoc::broken_intra_doc_links)]
 #![deny(elided_lifetimes_in_paths, unsafe_code)]
 
-//! `cargo doc2readme` is a cargo subcommand to create a readme file to display on [GitHub] or [crates.io],
+//! `cargo doc2readme` is a cargo subcommand to create a readme file to display on
+//! [GitHub] or [crates.io],
 //! containing the rustdoc comments from your code.
 //!
 //! # Usage
@@ -21,8 +22,7 @@
 //!     - uses: docker://ghcr.io/msrd0/cargo-doc2readme
 //!       with:
 //!         entrypoint: cargo
-//!         args: doc2readme
-//!     - run: git diff --exit-code README.md
+//!         args: doc2readme --check
 //! ```
 //!
 //! # Features
@@ -40,15 +40,20 @@
 //!
 //! # Similar tools
 //!
-//! [`cargo readme`][cargo-readme] is a similar tool. However, it brings its own Rust code parser that only covers the 95% use case. Also, it does not support Rust path links introduced in Rust 1.48, making your readme ugly due to GitHub showing the unsupported links as raw markdown, and being less convenient for the reader that has to search [docs.rs] instead of clicking on a link.
+//! [`cargo readme`][cargo-readme] is a similar tool. However, it brings its own Rust code
+//! parser that only covers the 95% use case. Also, it does not support Rust path links
+//! introduced in Rust 1.48, making your readme ugly due to GitHub showing the unsupported
+//! links as raw markdown, and being less convenient for the reader that has to search
+//! [docs.rs] instead of clicking on a link.
 //!
 //! # Stability Guarantees
 //!
-//! This project adheres to semantic versioning. All versions will be tested against the latest stable rust version
-//! at the time of the release. All non-bugfix changes to the rustdoc input processing and markdown output or the
-//! default readme template are considered breaking changes, as well as any non-backwards-compatible changes to the
-//! command-line arguments or to these stability guarantees. All other changes, including any changes to the Rust
-//! code, or bumping the MSRV, are not considered breaking changes.
+//! This project adheres to semantic versioning. All versions will be tested against the
+//! latest stable rust version at the time of the release. All non-bugfix changes to the
+//! rustdoc input processing and markdown output or the default readme template are
+//! considered breaking changes, as well as any non-backwards-compatible changes to the
+//! command-line arguments or to these stability guarantees. All other changes, including
+//! any changes to the Rust code, or bumping the MSRV, are not considered breaking changes.
 //!
 //!  [crates.io]: https://crates.io
 //!  [GitHub]: https://github.com

@@ -22,8 +22,7 @@ readme:
     - uses: docker://ghcr.io/msrd0/cargo-doc2readme
       with:
         entrypoint: cargo
-        args: doc2readme
-    - run: git diff --exit-code README.md
+        args: doc2readme --check
 ```
 
 
