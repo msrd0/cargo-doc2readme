@@ -37,10 +37,12 @@ impl HashDef {
 }
 
 #[derive(Deserialize, Eq, PartialEq, PartialOrd, Ord, Serialize)]
+#[rustfmt::skip]
 struct Dependency(
 	String,
 	Option<Version>,
-	#[serde(skip_serializing_if = "Option::is_none", default)] Option<String>
+	#[serde(skip_serializing_if = "Option::is_none", default)]
+	Option<String>
 );
 
 impl Dependency {
@@ -151,8 +153,19 @@ impl DependencyInfoImpl {
 pub struct DependencyInfo(DependencyInfoImpl);
 
 impl DependencyInfo {
-	pub fn new(markdown_version: u8, template: &str, rustdoc: &str) -> Self {
-		Self(DependencyInfoImpl::new(markdown_version, template, rustdoc))
+	/// Return the current markdown version. This is just an internal number to track changes
+	/// to the markdown output, and does not correspond to any "official" markdown spec version.
+	#[inline]
+	pub fn markdown_version() -> u8 {
+		0
+	}
+
+	pub fn new(template: &str, rustdoc: &str) -> Self {
+		Self(DependencyInfoImpl::new(
+			Self::markdown_version(),
+			template,
+			rustdoc
+		))
 	}
 
 	pub fn decode(data: String) -> anyhow::Result<Self> {
@@ -179,6 +192,10 @@ impl DependencyInfo {
 		lib_name: String
 	) {
 		self.0.add_dependency(crate_name, version, lib_name)
+	}
+
+	pub fn check_outdated(&self) -> bool {
+		self.0.markdown_version() != Self::markdown_version()
 	}
 
 	pub fn check_dependency(
@@ -221,13 +238,12 @@ mod tests {
 	use base64::URL_SAFE_NO_PAD;
 	use semver::Version;
 
-	const MARKDOWN_VERSION: u8 = 0;
 	const TEMPLATE: &str = include_str!("README.j2");
 	const RUSTDOC: &str = "This is the best crate ever!";
 
 	#[test]
 	fn test_dep_info() {
-		let mut dep_info = DependencyInfo::new(MARKDOWN_VERSION, TEMPLATE, RUSTDOC);
+		let mut dep_info = DependencyInfo::new(TEMPLATE, RUSTDOC);
 
 		assert!(dep_info.check_input(TEMPLATE, RUSTDOC));
 		assert!(!dep_info.check_input(TEMPLATE, ""));

@@ -16,6 +16,9 @@ pub enum Check {
 	/// One or more dependencies use an incompatible version.
 	IncompatibleVersion,
 
+	/// The readme used an outdated "markdown version".
+	OutdatedMarkdown,
+
 	/// Input and output are different (no dep info was included).
 	OutputChanged
 }
@@ -30,6 +33,9 @@ impl Check {
 			Check::InputChanged => shell.error("Input has changed"),
 			Check::IncompatibleVersion => {
 				shell.error("Readme links to incompatible dependency version")
+			},
+			Check::OutdatedMarkdown => {
+				shell.error("The readme was created with an outdated version of this tool")
 			},
 			Check::OutputChanged => shell.error("Readme has changed")
 		}
@@ -65,6 +71,11 @@ pub fn check_up2date(
 				return Ok(Check::InvalidDepInfo(e));
 			}
 		};
+
+		// ensure markdown version matches
+		if depinfo.check_outdated() {
+			return Ok(Check::OutdatedMarkdown);
+		}
 
 		// ensure the input is up to date
 		if !depinfo.check_input(template, &input.rustdoc) {
