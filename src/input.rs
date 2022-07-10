@@ -3,6 +3,7 @@ use cargo::core::{Edition, Manifest, Registry, Summary, Target, TargetKind};
 use semver::Version;
 use std::{
 	collections::HashMap,
+	fmt::{self, Debug, Formatter},
 	fs::File,
 	io::{self, Read, Write},
 	path::Path,
@@ -159,9 +160,36 @@ pub struct InputFile {
 	pub rustdoc: String,
 	/// The crate-level dependencies, mapping the valid identifier in rust code to the (possibly
 	/// renamed, containing invalid characters, etc.) crate name and version.
-	pub dependencies: HashMap<String, (String, Version)>,
+	pub dependencies: HashMap<String, Dependency>,
 	/// The scope at the crate root.
 	pub scope: Scope
+}
+
+pub struct Dependency {
+	/// The crate name as it appears on crates.io.
+	pub crate_name: String,
+
+	/// The exact version of the dependency.
+	pub version: Version
+}
+
+impl Dependency {
+	fn new(crate_name: String, version: Version) -> Self {
+		Self {
+			crate_name,
+			version
+		}
+	}
+
+	pub fn as_tuple(&self) -> (&str, Option<&Version>) {
+		(self.crate_name.as_str(), Some(&self.version))
+	}
+}
+
+impl Debug for Dependency {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		write!(f, "{} = \"{}\"", self.crate_name, self.version)
+	}
 }
 
 pub fn read_code(
@@ -218,7 +246,7 @@ fn parse_doc_attr(input: &Attribute) -> syn::Result<Option<LitStr>> {
 fn resolve_dependencies(
 	manifest: &Manifest,
 	registry: &mut dyn Registry
-) -> anyhow::Result<HashMap<String, (String, Version)>> {
+) -> anyhow::Result<HashMap<String, Dependency>> {
 	let mut deps = HashMap::new();
 
 	// we currently insert our own crate as a dependency to allow doc links referencing ourself.
@@ -228,7 +256,7 @@ fn resolve_dependencies(
 	// those links might be dead.
 	deps.insert(
 		manifest.name().to_string().replace('-', "_"),
-		(manifest.name().to_string(), manifest.version().clone())
+		Dependency::new(manifest.name().to_string(), manifest.version().clone())
 	);
 
 	let pending_deps = manifest
@@ -239,12 +267,12 @@ fn resolve_dependencies(
 			let mut f = |sum: Summary| {
 				if deps
 					.get(&dep_name)
-					.map(|(_, ver)| ver < sum.version())
+					.map(|dep| &dep.version < sum.version())
 					.unwrap_or(true)
 				{
 					deps.insert(
 						dep_name.clone(),
-						(sum.name().to_string(), sum.version().clone())
+						Dependency::new(sum.name().to_string(), sum.version().clone())
 					);
 				}
 			};

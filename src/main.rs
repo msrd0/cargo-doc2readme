@@ -113,7 +113,11 @@ struct Args {
 	/// Verify that the output file is (reasonably) up to date, and fail
 	/// if it needs updating. The output file will not be changed.
 	#[clap(long)]
-	check: bool
+	check: bool,
+
+	/// Enable verbose output.
+	#[clap(short, long)]
+	verbose: bool
 }
 
 #[derive(Parser)]
@@ -138,12 +142,19 @@ fn main() -> ExitCode {
 			.expect("Unable to find Cargo.toml")
 	};
 
-	// parse the cargo manifest
+	// initialize cargo
 	let cargo_cfg = CargoConfig::default().expect("Failed to initialize cargo");
+	cargo_cfg.shell().set_verbosity(
+		args.verbose
+			.then(|| Verbosity::Verbose)
+			.unwrap_or(Verbosity::Normal)
+	);
+
+	// parse the cargo manifest
 	let src_id = SourceId::for_path(&manifest_path).expect("Failed to obtain source id");
-	let manifest = match read_manifest(&manifest_path, src_id, &cargo_cfg)
-		.expect("Failed to read Cargo.toml")
-	{
+	let manifest =
+		read_manifest(&manifest_path, src_id, &cargo_cfg).expect("Failed to read Cargo.toml");
+	let manifest = match manifest {
 		(EitherManifest::Real(manifest), _) => manifest,
 		(EitherManifest::Virtual(_), _) => {
 			cargo_cfg
@@ -153,12 +164,6 @@ fn main() -> ExitCode {
 			return ExitCode::FAILURE;
 		}
 	};
-
-	// fix cargo being extremely verbose by default
-	match env::var("RUST_LOG") {
-		Ok(log) if log == "debug" => cargo_cfg.shell().set_verbosity(Verbosity::Verbose),
-		_ => cargo_cfg.shell().set_verbosity(Verbosity::Normal)
-	}
 
 	// find the target whose rustdoc comment we'll use.
 	// this uses a library target if exists, otherwise a binary target with the same name as the
@@ -220,7 +225,7 @@ fn main() -> ExitCode {
 	let input_file = input::read_code(&manifest, &mut registry, code).expect("Unable to read file");
 	cargo_cfg
 		.shell()
-		.verbose(|shell| shell.status("Processing", format_args!("{input_file:?}")))
+		.verbose(|shell| shell.status("Processing", format_args!("{input_file:#?}")))
 		.ok();
 	if input_file.scope.has_glob_use {
 		cargo_cfg.shell().warn("Your code contains glob use statements (e.g. `use std::io::prelude::*;`). Those can lead to incomplete link generation.").ok();

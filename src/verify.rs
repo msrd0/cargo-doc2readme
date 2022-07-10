@@ -73,8 +73,8 @@ pub fn check_up2date(
 
 		// ensure that the dependencies that were used in the readme still meet the current required
 		// versions. dependencies that are missing in the readme don't matter.
-		for (lib_name, (crate_name, version)) in &input.dependencies {
-			if !depinfo.check_dependency(crate_name, Some(version), lib_name, true) {
+		for (lib_name, dep) in &input.dependencies {
+			if !depinfo.check_dependency(&dep.crate_name, Some(&dep.version), lib_name, true) {
 				return Ok(Check::IncompatibleVersion);
 			}
 		}

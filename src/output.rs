@@ -1,6 +1,6 @@
 use crate::{
 	depinfo::DependencyInfo,
-	input::{InputFile, Scope}
+	input::{Dependency, InputFile, Scope}
 };
 use anyhow::anyhow;
 use either::Either;
@@ -303,14 +303,14 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				let (crate_name, crate_ver) = input
 					.dependencies
 					.get(&input.crate_name)
-					.map(|(name, ver)| (name.as_str(), Some(ver)))
+					.map(Dependency::as_tuple)
 					.unwrap_or((&input.crate_name, None));
 				links.insert(link, build_link(crate_name, crate_ver, Some(&search)));
 			} else if path.segments.len() > 1 {
 				let (crate_name, crate_ver) = input
 					.dependencies
 					.get(&first)
-					.map(|(name, ver)| (name.as_str(), Some(ver)))
+					.map(Dependency::as_tuple)
 					.unwrap_or((&first, None));
 				links.insert(link, build_link(crate_name, crate_ver, Some(&search)));
 			} else if RUST_PRIMITIVES.contains(&first.as_str()) {
@@ -322,7 +322,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 				let (crate_name, crate_ver) = input
 					.dependencies
 					.get(&first)
-					.map(|(name, ver)| (name.as_str(), Some(ver)))
+					.map(Dependency::as_tuple)
 					.unwrap_or((&first, None));
 				links.insert(link, build_link(crate_name, crate_ver, None));
 			}
