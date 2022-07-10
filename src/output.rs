@@ -110,7 +110,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 					for flag in RUSTDOC_CODEBLOCK_FLAGS {
 						lang = lang.replace(flag, "");
 					}
-					lang = lang.replace(",", "");
+					lang = lang.replace(',', "");
 
 					if lang.is_empty() {
 						lang = "rust".to_owned();
@@ -252,7 +252,7 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 	const MARKDOWN_VERSION: u8 = 0;
 	let mut dependency_info = DependencyInfo::new(MARKDOWN_VERSION, template, &input.rustdoc);
 	let mut build_link = |crate_name: &str, crate_ver: Option<&Version>, search: Option<&str>| {
-		let lib_name = crate_name.replace("-", "_");
+		let lib_name = crate_name.replace('-', "_");
 		let link = match search {
 			Some(search) => format!(
 				"https://docs.rs/{crate_name}/{}/{lib_name}/?search={search}",

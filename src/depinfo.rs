@@ -206,12 +206,12 @@ impl DependencyInfo {
 		if let Some(ver) = version {
 			match dep_ver {
 				None => return false,
-				Some(dep_ver) if !(*dep_ver >= ver) => return false,
+				Some(dep_ver) if *dep_ver < ver => return false,
 				_ => {}
 			}
 		}
 
-		return true;
+		true
 	}
 }
 

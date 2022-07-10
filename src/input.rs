@@ -233,7 +233,7 @@ fn resolve_dependencies(
 
 	let pending_deps = manifest
 		.dependencies()
-		.into_iter()
+		.iter()
 		.map(|dep| {
 			let dep_name = dep.name_in_toml().to_string().replace('-', "_");
 			let mut f = |sum: Summary| {
