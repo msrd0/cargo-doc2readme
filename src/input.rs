@@ -1,6 +1,9 @@
 use anyhow::{bail, Context};
-use cargo::core::{Edition, Manifest, Registry, Summary, Target, TargetKind};
-use semver::Version;
+use cargo::{
+	core::{Edition, Manifest, Registry, Summary, Target, TargetKind},
+	util::OptVersionReq
+};
+use semver::{Comparator, Op, Version, VersionReq};
 use std::{
 	collections::HashMap,
 	fmt::{self, Debug, Formatter},
@@ -169,14 +172,18 @@ pub struct Dependency {
 	/// The crate name as it appears on crates.io.
 	pub crate_name: String,
 
+	/// The version requirement of the dependency.
+	pub req: VersionReq,
+
 	/// The exact version of the dependency.
 	pub version: Version
 }
 
 impl Dependency {
-	fn new(crate_name: String, version: Version) -> Self {
+	fn new(crate_name: String, req: VersionReq, version: Version) -> Self {
 		Self {
 			crate_name,
+			req,
 			version
 		}
 	}
@@ -188,7 +195,11 @@ impl Dependency {
 
 impl Debug for Dependency {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		write!(f, "{} = \"{}\"", self.crate_name, self.version)
+		write!(
+			f,
+			"{} = \"{}\" ({})",
+			self.crate_name, self.req, self.version
+		)
 	}
 }
 
@@ -254,34 +265,67 @@ fn resolve_dependencies(
 	// the repository readme points to some rustdoc generated from the master branch, instead of
 	// the last release. Also, the version in the current manifest might not be released, so
 	// those links might be dead.
+	let version = manifest.version().clone();
 	deps.insert(
 		manifest.name().to_string().replace('-', "_"),
-		Dependency::new(manifest.name().to_string(), manifest.version().clone())
+		Dependency::new(
+			manifest.name().to_string(),
+			[Comparator {
+				op: Op::Exact,
+				major: version.major,
+				minor: Some(version.minor),
+				patch: Some(version.patch),
+				pre: version.pre.clone()
+			}]
+			.into_iter()
+			.collect(),
+			version
+		)
 	);
 
 	let pending_deps = manifest
 		.dependencies()
 		.iter()
-		.map(|dep| {
+		.filter_map(|dep| {
 			let dep_name = dep.name_in_toml().to_string().replace('-', "_");
-			let mut f = |sum: Summary| {
+			let mut add_dep = |crate_name: String, req: &VersionReq, version: &Version| {
 				if deps
 					.get(&dep_name)
-					.map(|dep| &dep.version < sum.version())
+					.map(|dep| &dep.version < version)
 					.unwrap_or(true)
 				{
 					deps.insert(
 						dep_name.clone(),
-						Dependency::new(sum.name().to_string(), sum.version().clone())
+						Dependency::new(crate_name, req.clone(), version.clone())
 					);
 				}
 			};
-			registry.query(dep, &mut f, false)
+
+			match dep.version_req() {
+				OptVersionReq::Locked(version, req) => {
+					add_dep(dep.package_name().to_string(), req, version);
+					None
+				},
+				OptVersionReq::Req(req) => {
+					let mut f = |sum: Summary| {
+						add_dep(sum.name().to_string(), req, sum.version());
+					};
+					Some(registry.query(dep, &mut f, false))
+				},
+				_ => {
+					let mut f = |sum: Summary| {
+						add_dep(sum.name().to_string(), &VersionReq::STAR, sum.version());
+					};
+					Some(registry.query(dep, &mut f, false))
+				}
+			}
 		})
 		.collect::<Vec<_>>();
+
 	registry
 		.block_until_ready()
 		.expect("Failed to wait for dependency resolver");
+
 	for dep in pending_deps {
 		match dep {
 			Poll::Ready(dep) => dep.expect("Failed to resolve dependency"),

@@ -240,8 +240,9 @@ fn main() -> ExitCode {
 		cargo_cfg.shell().status("Reading", out.display()).ok();
 		match File::open(&out) {
 			Ok(mut file) => {
-				let check = verify::check_up2date(input_file, &template, &mut file)
-					.expect("Failed to check readme");
+				let check =
+					verify::check_up2date(cargo_cfg.shell(), input_file, &template, &mut file)
+						.expect("Failed to check readme");
 				check.print(cargo_cfg.shell());
 				check.into()
 			},

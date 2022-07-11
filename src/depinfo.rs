@@ -1,7 +1,7 @@
 use base64::URL_SAFE_NO_PAD;
 use blake3::Hash;
 use monostate::MustBe;
-use semver::Version;
+use semver::{Version, VersionReq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -198,10 +198,11 @@ impl DependencyInfo {
 		self.0.markdown_version() != Self::markdown_version()
 	}
 
+	// TODO req probably doesn't need to be optional
 	pub fn check_dependency(
 		&self,
 		crate_name: &str,
-		version: Option<&Version>,
+		req: Option<&VersionReq>,
 		lib_name: &str,
 		allow_missing: bool
 	) -> bool {
@@ -220,10 +221,10 @@ impl DependencyInfo {
 		// check that the versions are compatible
 		// if the requested version is None, we accept all versions
 		// otherwise, we expect a concrete version that is semver-compatible
-		if let Some(ver) = version {
+		if let Some(req) = req {
 			match dep_ver {
 				None => return false,
-				Some(dep_ver) if *dep_ver < ver => return false,
+				Some(dep_ver) if !req.matches(dep_ver) => return false,
 				_ => {}
 			}
 		}
@@ -241,6 +242,35 @@ mod tests {
 	const TEMPLATE: &str = include_str!("README.j2");
 	const RUSTDOC: &str = "This is the best crate ever!";
 
+	macro_rules! req {
+		(^ $major:tt) => {
+			req_impl!($major, None, None)
+		};
+
+		(^ $major:tt, $minor:tt) => {
+			req_impl!($major, Some($minor), None)
+		};
+
+		(^ $major:tt, $minor:tt, $patch:tt) => {
+			req_impl!($major, Some($minor), Some($patch))
+		};
+	}
+
+	macro_rules! req_impl {
+		($major:expr, $minor:expr, $patch:expr) => {{
+			let req: semver::VersionReq = [semver::Comparator {
+				op: semver::Op::Caret,
+				major: $major,
+				minor: $minor,
+				patch: $patch,
+				pre: Default::default()
+			}]
+			.into_iter()
+			.collect();
+			req
+		}};
+	}
+
 	#[test]
 	fn test_dep_info() {
 		let mut dep_info = DependencyInfo::new(TEMPLATE, RUSTDOC);
@@ -254,20 +284,17 @@ mod tests {
 		assert!(!dep_info.check_dependency("anyhow", None, "anyhow", false));
 		assert!(dep_info.check_dependency("anyhow", None, "anyhow", true));
 
-		let version_1_0_0: Version = "1.0.0".parse().unwrap();
 		let version_1_0_1: Version = "1.0.1".parse().unwrap();
-		let version_1_1_0: Version = "1.1.0".parse().unwrap();
+		let req_1 = req!(^1);
+		let req_1_0_1 = req!(^1,0,1);
+		let req_1_1 = req!(^1,1);
 
-		dep_info.add_dependency(
-			"anyhow".into(),
-			Some(version_1_0_1.clone()),
-			"anyhow".into()
-		);
+		dep_info.add_dependency("anyhow".into(), Some(version_1_0_1), "anyhow".into());
 		assert!(dep_info.check_dependency("anyhow", None, "anyhow", false));
-		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_0), "anyhow", false));
-		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_1), "anyhow", false));
-		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_1_0), "anyhow", false));
-		assert!(!dep_info.check_dependency("anyhow", Some(&version_1_0_0), "any_how", false));
+		assert!(dep_info.check_dependency("anyhow", Some(&req_1), "anyhow", false));
+		assert!(dep_info.check_dependency("anyhow", Some(&req_1_0_1), "anyhow", false));
+		assert!(!dep_info.check_dependency("anyhow", Some(&req_1_1), "anyhow", false));
+		assert!(!dep_info.check_dependency("anyhow", Some(&req_1), "any_how", false));
 
 		// check that encoding and decoding works as expected
 		let encoded = dep_info.encode();
@@ -277,6 +304,6 @@ mod tests {
 		);
 		let dep_info = DependencyInfo::decode(encoded).unwrap();
 		assert!(dep_info.check_input(TEMPLATE, RUSTDOC));
-		assert!(dep_info.check_dependency("anyhow", Some(&version_1_0_1), "anyhow", false));
+		assert!(dep_info.check_dependency("anyhow", Some(&req_1_0_1), "anyhow", false));
 	}
 }

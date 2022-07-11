@@ -14,7 +14,7 @@ pub enum Check {
 	InputChanged,
 
 	/// One or more dependencies use an incompatible version.
-	IncompatibleVersion,
+	IncompatibleVersion(String),
 
 	/// The readme used an outdated "markdown version".
 	OutdatedMarkdown,
@@ -31,9 +31,9 @@ impl Check {
 				shell.error(format!("Readme has invalid dependency info: {e}"))
 			},
 			Check::InputChanged => shell.error("Input has changed"),
-			Check::IncompatibleVersion => {
-				shell.error("Readme links to incompatible dependency version")
-			},
+			Check::IncompatibleVersion(name) => shell.error(format!(
+				"Readme links to incompatible version of dependency `{name}`"
+			)),
 			Check::OutdatedMarkdown => {
 				shell.error("The readme was created with an outdated version of this tool")
 			},
@@ -53,6 +53,7 @@ impl From<Check> for ExitCode {
 }
 
 pub fn check_up2date(
+	mut shell: RefMut<'_, Shell>,
 	input: InputFile,
 	template: &str,
 	check_file: &mut dyn io::Read
@@ -85,8 +86,13 @@ pub fn check_up2date(
 		// ensure that the dependencies that were used in the readme still meet the current required
 		// versions. dependencies that are missing in the readme don't matter.
 		for (lib_name, dep) in &input.dependencies {
-			if !depinfo.check_dependency(&dep.crate_name, Some(&dep.version), lib_name, true) {
-				return Ok(Check::IncompatibleVersion);
+			shell
+				.verbose(|shell| {
+					shell.status("Checking", format!("{} = \"{}\"", dep.crate_name, dep.req))
+				})
+				.ok();
+			if !depinfo.check_dependency(&dep.crate_name, Some(&dep.req), lib_name, true) {
+				return Ok(Check::IncompatibleVersion(dep.crate_name.clone()));
 			}
 		}
 
