@@ -259,7 +259,8 @@ fn main() -> ExitCode {
 		cargo_cfg.shell().status("Writing", out.display()).ok();
 		let outfilename = out.file_name().expect("Unable to get output file name");
 		if outfilename.to_string_lossy() == "-" {
-			output::emit(input_file, &template, &mut io::stdout()).expect("Unable to write to stdout!");
+			output::emit(input_file, &template, &mut io::stdout())
+				.expect("Unable to write to stdout!");
 		} else {
 			let mut file = File::create(&out).expect("Unable to create output file");
 			output::emit(input_file, &template, &mut file).expect("Unable to write output file");
