@@ -258,12 +258,12 @@ fn main() -> ExitCode {
 	} else {
 		cargo_cfg.shell().status("Writing", out.display()).ok();
 		let outfilename = out.file_name().expect("Unable to get output file name");
-		let mut out: Box<dyn std::io::Write> = if outfilename.to_string_lossy() == "-" {
-			Box::new(std::io::stdout())
+		if outfilename.to_string_lossy() == "-" {
+			output::emit(input_file, &template, &mut io::stdout()).expect("Unable to write to stdout!");
 		} else {
-			Box::new(File::create(&out).expect("Unable to create output file"))
+			let mut file = File::create(&out).expect("Unable to create output file");
+			output::emit(input_file, &template, &mut file).expect("Unable to write output file");
 		};
-		output::emit(input_file, &template, &mut out).expect("Unable to write output file");
 		ExitCode::SUCCESS
 	};
 
