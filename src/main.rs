@@ -257,8 +257,14 @@ fn main() -> ExitCode {
 		}
 	} else {
 		cargo_cfg.shell().status("Writing", out.display()).ok();
-		let mut out = File::create(&out).expect("Unable to create output file");
-		output::emit(input_file, &template, &mut out).expect("Unable to write output file");
+		let outfilename = out.file_name().expect("Unable to get output file name");
+		if outfilename.to_string_lossy() == "-" {
+			output::emit(input_file, &template, &mut io::stdout())
+				.expect("Unable to write to stdout!");
+		} else {
+			let mut file = File::create(&out).expect("Unable to create output file");
+			output::emit(input_file, &template, &mut file).expect("Unable to write output file");
+		};
 		ExitCode::SUCCESS
 	};
 
