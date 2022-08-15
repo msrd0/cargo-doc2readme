@@ -28,7 +28,7 @@ semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_cbor = "0.11.2"
 syn = { version = "1.0.98", features = ["full", "parsing"], default-features = false }
-tera = { version = "1.16", features = ["urlencode"], default-features = false }
+tera = { version = "1.17", features = ["urlencode"], default-features = false }
 unindent = "0.1.9"
 url = "2.2"
 
