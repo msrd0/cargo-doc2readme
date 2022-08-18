@@ -57,10 +57,9 @@ fn make_prelude<const N: usize>(prelude: [(&'static str, &'static str); N]) -> S
 impl Scope {
 	fn insert<K, V>(&mut self, key: K, ty: LinkType, value: V)
 	where
-		K: Into<String> + Debug,
-		V: Into<String> + Debug
+		K: Into<String>,
+		V: Into<String>
 	{
-		eprintln!("Scope::insert({key:?}, {ty:?}, {value:?})");
 		self.scope
 			.entry(key.into())
 			.or_insert_with(VecDeque::new)
