@@ -230,7 +230,8 @@ fn main() -> ExitCode {
 	if input_file.scope.has_glob_use {
 		cargo_cfg.shell().warn("Your code contains glob use statements (e.g. `use std::io::prelude::*;`). Those can lead to incomplete link generation.").ok();
 	}
-	let out = if args.out.is_relative() {
+	let out_is_stdout = args.out.to_str() == Some("-");
+	let out = if !out_is_stdout && args.out.is_relative() {
 		env::current_dir().unwrap().join(args.out)
 	} else {
 		args.out
@@ -256,12 +257,12 @@ fn main() -> ExitCode {
 			Err(e) => panic!("Unable to open file {}: {e}", out.display())
 		}
 	} else {
-		cargo_cfg.shell().status("Writing", out.display()).ok();
-		let outfilename = out.file_name().expect("Unable to get output file name");
-		if outfilename.to_string_lossy() == "-" {
+		if out_is_stdout {
+			cargo_cfg.shell().status("Writing", "to stdout").ok();
 			output::emit(input_file, &template, &mut io::stdout())
 				.expect("Unable to write to stdout!");
 		} else {
+			cargo_cfg.shell().status("Writing", out.display()).ok();
 			let mut file = File::create(&out).expect("Unable to create output file");
 			output::emit(input_file, &template, &mut file).expect("Unable to write output file");
 		};
