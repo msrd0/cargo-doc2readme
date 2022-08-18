@@ -5,7 +5,7 @@ use cargo::{
 };
 use semver::{Comparator, Op, Version, VersionReq};
 use std::{
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	fmt::{self, Debug, Formatter},
 	fs::File,
 	io::{self, Read, Write},
@@ -20,6 +20,8 @@ use unindent::Unindent;
 pub struct Scope {
 	// use statements and declared items. maps name to path.
 	pub scope: HashMap<String, String>,
+	// private modules so that `pub use`'d items are considered inlined.
+	pub privmods: HashSet<String>,
 	// the scope included a wildcard use statement.
 	pub has_glob_use: bool
 }
@@ -78,6 +80,7 @@ impl Scope {
 			.into_iter()
 			.map(|(name, path)| (name.into(), format!("::std::{path}::{name}")))
 			.collect(),
+			privmods: HashSet::new(),
 			has_glob_use: false
 		};
 
@@ -348,6 +351,7 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 	let mut scope = Scope::prelude(manifest.edition());
 
 	for i in &file.items {
+		let mut is_mod = false;
 		let mut is_macro = false;
 		let (ident, path) = match i {
 			Item::Const(i) => item_ident!(crate_name, &i.ident),
@@ -364,7 +368,10 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 				is_macro = true;
 				item_ident!(crate_name, &i.ident)
 			},
-			Item::Mod(i) => item_ident!(crate_name, &i.ident),
+			Item::Mod(i) => {
+				is_mod = true;
+				item_ident!(crate_name, &i.ident)
+			},
 			Item::Static(i) => item_ident!(crate_name, &i.ident),
 			Item::Struct(i) => item_ident!(crate_name, &i.ident),
 			Item::Trait(i) => item_ident!(crate_name, &i.ident),
@@ -380,7 +387,23 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 		if is_macro {
 			scope.insert(format!("{ident}!"), path.clone());
 		}
+		if is_mod {
+			scope.privmods.insert(ident.to_string());
+		}
 		scope.insert(ident.to_string(), path);
+	}
+
+	// remove privmod imports from scope
+	for key in scope.scope.keys().cloned().collect::<Vec<_>>() {
+		let value = &scope.scope[&key];
+		if value.starts_with("::") {
+			continue;
+		}
+
+		let segments = value.split("::").collect::<Vec<_>>();
+		if segments.len() > 1 && scope.privmods.contains(segments[0]) {
+			scope.scope.remove(&key);
+		}
 	}
 
 	Ok(scope)

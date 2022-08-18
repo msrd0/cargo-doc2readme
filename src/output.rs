@@ -327,7 +327,9 @@ impl<'a> Readme<'a> {
 			if href.starts_with('`') && href.ends_with('`') {
 				href = href[1..href.len() - 1].to_owned();
 			}
+			eprintln!("looking at link {link:?} with href {href:?}");
 			href = self.input.scope.resolve(&self.input.crate_name, href);
+			eprintln!("  -> resolved to {href:?}");
 			if let Ok(path) = syn::parse_str::<Path>(&href) {
 				let first = path
 					.segments
@@ -402,8 +404,10 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 	// unwrap: This will never fail since we're only writing to a String.
 	// it is just inconvenient to write .unwrap() behind every single write!() invocation
 	readme.write_markdown().unwrap();
+	eprintln!("write_markdown done");
 
 	readme.write_links();
+	eprintln!("write_links done");
 
 	let mut ctx = tera::Context::new();
 	ctx.insert("crate", &input.crate_name);
@@ -424,5 +428,6 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 	let str = Tera::one_off(template, &ctx, false /* no auto-escaping */)?;
 	write!(out_file, "{}", str)?;
 
+	eprintln!("emit done");
 	Ok(())
 }
