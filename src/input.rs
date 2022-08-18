@@ -5,7 +5,7 @@ use cargo::{
 };
 use semver::{Comparator, Op, Version, VersionReq};
 use std::{
-	collections::HashMap,
+	collections::{HashMap, HashSet, VecDeque},
 	fmt::{self, Debug, Formatter},
 	fs::File,
 	io::{self, Read, Write},
@@ -13,31 +13,64 @@ use std::{
 	process::{Command, Output},
 	task::Poll
 };
-use syn::{Attribute, Item, ItemUse, Lit, LitStr, Meta, UsePath, UseTree};
+use syn::{Attribute, Ident, Item, ItemUse, Lit, LitStr, Meta, UsePath, UseTree, Visibility};
 use unindent::Unindent;
+
+type ScopeScope = HashMap<String, VecDeque<(LinkType, String)>>;
 
 #[derive(Debug)]
 pub struct Scope {
 	// use statements and declared items. maps name to path.
-	pub scope: HashMap<String, String>,
+	pub scope: ScopeScope,
+	// private modules so that `pub use`'d items are considered inlined.
+	pub privmods: HashSet<String>,
 	// the scope included a wildcard use statement.
 	pub has_glob_use: bool
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum LinkType {
+	/// `use` statement that links to a path.
+	Use,
+
+	/// `pub use` statement that links to the name pub used as.
+	PubUse,
+
+	/// Other statements we'll implement later.
+	Other
+}
+
+fn make_prelude<const N: usize>(prelude: [(&'static str, &'static str); N]) -> ScopeScope {
+	prelude
+		.into_iter()
+		.map(|(name, path)| {
+			(
+				name.into(),
+				[(LinkType::Use, format!("::std::{path}::{name}"))]
+					.into_iter()
+					.collect()
+			)
+		})
+		.collect()
+}
+
 impl Scope {
-	fn insert<K, V>(&mut self, key: K, value: V)
+	fn insert<K, V>(&mut self, key: K, ty: LinkType, value: V)
 	where
 		K: Into<String>,
 		V: Into<String>
 	{
-		self.scope.insert(key.into(), value.into());
+		self.scope
+			.entry(key.into())
+			.or_insert_with(VecDeque::new)
+			.push_front((ty, value.into()));
 	}
 
 	/// Create a new scope from the Rust prelude.
 	pub fn prelude(edition: Edition) -> Self {
 		let mut scope = Scope {
 			// https://doc.rust-lang.org/stable/std/prelude/index.html#prelude-contents
-			scope: [
+			scope: make_prelude([
 				("Copy", "marker"),
 				("Send", "marker"),
 				("Sized", "marker"),
@@ -74,18 +107,20 @@ impl Scope {
 				("String", "string"),
 				("ToString", "string"),
 				("Vec", "vec")
-			]
-			.into_iter()
-			.map(|(name, path)| (name.into(), format!("::std::{path}::{name}")))
-			.collect(),
+			]),
+			privmods: HashSet::new(),
 			has_glob_use: false
 		};
 
 		if edition >= Edition::Edition2021 {
 			// https://blog.rust-lang.org/2021/05/11/edition-2021.html#additions-to-the-prelude
-			scope.insert("TryInto", "::std::convert::TryInto");
-			scope.insert("TryFrom", "::std::convert::TryFrom");
-			scope.insert("FromIterator", "::std::iter::FromIterator");
+			for (key, value) in make_prelude([
+				("TryInto", "convert"),
+				("TryFrom", "convert"),
+				("FromIterator", "iter")
+			]) {
+				scope.scope.insert(key, value);
+			}
 		}
 
 		scope
@@ -336,10 +371,14 @@ fn resolve_dependencies(
 	Ok(deps)
 }
 
-macro_rules! item_ident {
-	($crate_name:expr, $ident:expr) => {{
+macro_rules! scope_insert {
+	($scope:ident, $crate_name:expr, $ident:expr) => {{
 		let ident: &::syn::Ident = $ident;
-		(ident, format!("::{}::{ident}", $crate_name))
+		$scope.insert(
+			ident.to_string(),
+			LinkType::Other,
+			format!("::{}::{ident}", $crate_name)
+		);
 	}};
 }
 
@@ -348,67 +387,123 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 	let mut scope = Scope::prelude(manifest.edition());
 
 	for i in &file.items {
-		let mut is_macro = false;
-		let (ident, path) = match i {
-			Item::Const(i) => item_ident!(crate_name, &i.ident),
-			Item::Enum(i) => item_ident!(crate_name, &i.ident),
+		match i {
+			Item::Const(i) => scope_insert!(scope, crate_name, &i.ident),
+			Item::Enum(i) => scope_insert!(scope, crate_name, &i.ident),
 			Item::ExternCrate(i) if i.ident != "self" && i.rename.is_some() => {
-				(&i.rename.as_ref().unwrap().1, format!("::{}", i.ident))
+				let krate = &i.rename.as_ref().unwrap().1;
+				scope.insert(krate.to_string(), LinkType::Other, format!("::{}", i.ident));
 			},
-			Item::Fn(i) => item_ident!(crate_name, &i.sig.ident),
+			Item::Fn(i) => scope_insert!(scope, crate_name, &i.sig.ident),
 			Item::Macro(i) if i.ident.is_some() => {
-				is_macro = true;
-				item_ident!(crate_name, i.ident.as_ref().unwrap())
+				add_macro_to_scope(&mut scope, &crate_name, i.ident.as_ref().unwrap())
 			},
-			Item::Macro2(i) => {
-				is_macro = true;
-				item_ident!(crate_name, &i.ident)
+			Item::Macro2(i) => add_macro_to_scope(&mut scope, &crate_name, &i.ident),
+			Item::Mod(i) => match i.vis {
+				Visibility::Public(_) => {
+					scope_insert!(scope, crate_name, &i.ident)
+				},
+				_ => {
+					scope.privmods.insert(i.ident.to_string());
+				}
 			},
-			Item::Mod(i) => item_ident!(crate_name, &i.ident),
-			Item::Static(i) => item_ident!(crate_name, &i.ident),
-			Item::Struct(i) => item_ident!(crate_name, &i.ident),
-			Item::Trait(i) => item_ident!(crate_name, &i.ident),
-			Item::TraitAlias(i) => item_ident!(crate_name, &i.ident),
-			Item::Type(i) => item_ident!(crate_name, &i.ident),
-			Item::Union(i) => item_ident!(crate_name, &i.ident),
+			Item::Static(i) => scope_insert!(scope, crate_name, &i.ident),
+			Item::Struct(i) => scope_insert!(scope, crate_name, &i.ident),
+			Item::Trait(i) => scope_insert!(scope, crate_name, &i.ident),
+			Item::TraitAlias(i) => scope_insert!(scope, crate_name, &i.ident),
+			Item::Type(i) => scope_insert!(scope, crate_name, &i.ident),
+			Item::Union(i) => scope_insert!(scope, crate_name, &i.ident),
 			Item::Use(i) if !is_prelude_import(i) => {
-				add_use_tree_to_scope(&mut scope, String::new(), &i.tree);
-				continue;
+				add_use_tree_to_scope(&mut scope, &crate_name, &i.vis, String::new(), &i.tree)
 			},
-			_ => continue
+			_ => {}
 		};
-		if is_macro {
-			scope.insert(format!("{ident}!"), path.clone());
+	}
+
+	// remove privmod imports from scope
+	for values in &mut scope.scope.values_mut() {
+		let mut i = 0;
+		while i < values.len() {
+			if values[i].0 == LinkType::Use {
+				let path = &values[i].1;
+				if (!path.starts_with("::") || path.starts_with(&format!("::{crate_name}::")))
+					&& Some(path.split("::").collect::<Vec<_>>())
+						.map(|segments| segments.len() > 1 && scope.privmods.contains(segments[0]))
+						.unwrap()
+				{
+					values.remove(i);
+					continue;
+				}
+			}
+
+			i += 1;
 		}
-		scope.insert(ident.to_string(), path);
 	}
 
 	Ok(scope)
 }
 
-fn add_use_tree_to_scope(scope: &mut Scope, prefix: String, tree: &UseTree) {
+fn add_macro_to_scope(scope: &mut Scope, crate_name: &str, ident: &Ident) {
+	let path = format!("::{crate_name}::{ident}");
+	scope.insert(ident.to_string(), LinkType::Other, &path);
+	scope.insert(format!("{ident}!"), LinkType::Other, &path)
+}
+
+fn add_use_tree_to_scope(
+	scope: &mut Scope,
+	crate_name: &str,
+	vis: &Visibility,
+	prefix: String,
+	tree: &UseTree
+) {
 	match tree {
-		UseTree::Path(path) => {
-			add_use_tree_to_scope(scope, format!("{prefix}{}::", path.ident), &path.tree)
-		},
+		UseTree::Path(path) => add_use_tree_to_scope(
+			scope,
+			crate_name,
+			vis,
+			format!("{prefix}{}::", path.ident),
+			&path.tree
+		),
 		UseTree::Name(name) => {
 			// skip `pub use dependency;` style uses; they don't add any unknown elements to the scope
 			if !prefix.is_empty() {
-				scope.insert(name.ident.to_string(), format!("{prefix}{}", name.ident));
+				add_use_item_to_scope(scope, crate_name, vis, &prefix, &name.ident, &name.ident);
 			}
 		},
 		UseTree::Rename(name) => {
-			scope.insert(name.rename.to_string(), format!("{prefix}{}", name.ident));
+			add_use_item_to_scope(scope, crate_name, vis, &prefix, &name.rename, &name.ident);
 		},
 		UseTree::Glob(_) => {
 			scope.has_glob_use = true;
 		},
 		UseTree::Group(group) => {
 			for tree in &group.items {
-				add_use_tree_to_scope(scope, prefix.clone(), tree);
+				add_use_tree_to_scope(scope, crate_name, vis, prefix.clone(), tree);
 			}
 		},
 	};
+}
+
+fn add_use_item_to_scope(
+	scope: &mut Scope,
+	crate_name: &str,
+	vis: &Visibility,
+	prefix: &str,
+	rename: &Ident,
+	ident: &Ident
+) {
+	if matches!(vis, Visibility::Public(_)) {
+		scope.insert(
+			rename.to_string(),
+			LinkType::PubUse,
+			format!("::{crate_name}::{rename}")
+		);
+	}
+	scope.insert(
+		rename.to_string(),
+		LinkType::Use,
+		format!("{prefix}{ident}")
+	);
 }
 
 fn is_prelude_import(item_use: &ItemUse) -> bool {

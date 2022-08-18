@@ -45,8 +45,11 @@ impl Scope {
 			segments[0] = crate_name;
 		}
 		if self.scope.contains_key(segments[0]) {
-			segments[0] = &self.scope[segments[0]];
-			return self.resolve(crate_name, segments.join("::"));
+			let paths = &self.scope[segments[0]];
+			if let Some((_, path)) = paths.front() {
+				segments[0] = path;
+				return self.resolve(crate_name, segments.join("::"));
+			}
 		}
 		path
 	}
