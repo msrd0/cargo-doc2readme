@@ -30,6 +30,9 @@ pub struct Scope {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum LinkType {
+	/// Function statements.
+	Function,
+
 	/// `use` statement that links to a path.
 	Use,
 
@@ -394,7 +397,7 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 				let krate = &i.rename.as_ref().unwrap().1;
 				scope.insert(krate.to_string(), LinkType::Other, format!("::{}", i.ident));
 			},
-			Item::Fn(i) => scope_insert!(scope, crate_name, &i.sig.ident),
+			Item::Fn(i) => add_fun_to_scope(&mut scope, &crate_name, &i.sig.ident),
 			Item::Macro(i) if i.ident.is_some() => {
 				add_macro_to_scope(&mut scope, &crate_name, i.ident.as_ref().unwrap())
 			},
@@ -441,6 +444,12 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 	}
 
 	Ok(scope)
+}
+
+fn add_fun_to_scope(scope: &mut Scope, crate_name: &str, ident: &Ident) {
+	let path = format!("::{crate_name}::{ident}");
+	scope.insert(ident.to_string(), LinkType::Function, &path);
+	scope.insert(format!("{ident}()"), LinkType::Function, &path);
 }
 
 fn add_macro_to_scope(scope: &mut Scope, crate_name: &str, ident: &Ident) {
