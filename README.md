@@ -34,10 +34,12 @@ readme:
  - default, minimalistic readme template with some useful badges
  - custom readme templates
 
+
 ## Non-Goals
 
  - verbatim copy of your markdown
  - easy readability of the generated markdown source code
+
 
 ## Similar tools
 

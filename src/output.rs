@@ -250,7 +250,7 @@ impl<'a> Readme<'a> {
 					Tag::List(_) => {
 						let pop = lists.pop_back();
 						debug_assert!(pop.is_some());
-						Ok(())
+						newline(out, &indent, &mut has_newline)
 					},
 					Tag::Item => {
 						indent.pop_back();
