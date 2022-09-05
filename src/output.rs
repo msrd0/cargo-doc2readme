@@ -59,11 +59,16 @@ fn broken_link_callback<'a>(lnk: BrokenLink<'_>) -> Option<(CowStr<'a>, CowStr<'
 	Some(("".into(), lnk.reference.to_string().into()))
 }
 
-fn newline(out: &mut dyn fmt::Write, indent: &VecDeque<&'static str>) -> fmt::Result {
+fn newline(
+	out: &mut dyn fmt::Write,
+	indent: &VecDeque<&'static str>,
+	has_newline: &mut bool
+) -> fmt::Result {
 	writeln!(out)?;
 	for s in indent {
 		write!(out, "{s}")?;
 	}
+	*has_newline = true;
 	Ok(())
 }
 
@@ -159,21 +164,21 @@ impl<'a> Readme<'a> {
 				Event::Start(tag) => match tag {
 					Tag::Paragraph => Ok(()),
 					Tag::Heading(lvl, ..) => {
-						newline(out, &indent)?;
+						newline(out, &indent, &mut has_newline)?;
 						for _ in 0..=lvl as u8 {
 							write!(out, "#")?;
 						}
 						write!(out, " ")
 					},
 					Tag::BlockQuote => {
-						newline(out, &indent)?;
+						newline(out, &indent, &mut has_newline)?;
 						indent.push_back("> ");
 						write!(out, "> ")
 					},
 					Tag::CodeBlock(CodeBlockKind::Indented) => {
-						newline(out, &indent)?;
+						newline(out, &indent, &mut has_newline)?;
 						write!(out, "```{}", DEFAULT_CODEBLOCK_LANG)?;
-						newline(out, &indent)
+						newline(out, &indent, &mut has_newline)
 					},
 					Tag::CodeBlock(CodeBlockKind::Fenced(lang)) => {
 						// Strip rustdoc code-block flags from the language
@@ -187,18 +192,25 @@ impl<'a> Readme<'a> {
 							lang = "rust".to_owned();
 						}
 
-						newline(out, &indent)?;
+						newline(out, &indent, &mut has_newline)?;
 						write!(out, "```{lang}")?;
-						newline(out, &indent)
+						newline(out, &indent, &mut has_newline)
 					},
 					Tag::List(start) => {
 						lists.push_back(start);
 						Ok(())
 					},
 					Tag::Item => {
+						if !has_newline {
+							newline(out, &indent, &mut has_newline)?;
+						}
 						indent.push_back("\t");
-						match lists.back().unwrap() {
-							Some(start) => write!(out, " {start}. "),
+						match lists.back_mut().unwrap() {
+							Some(start) => {
+								write!(out, " {start}. ")?;
+								*start += 1;
+								Ok(())
+							},
 							None => write!(out, " - ")
 						}
 					},
@@ -220,30 +232,30 @@ impl<'a> Readme<'a> {
 				},
 				Event::End(tag) => match tag {
 					Tag::Paragraph | Tag::Heading(..) => {
-						newline(out, &indent)?;
-						newline(out, &indent)
+						newline(out, &indent, &mut has_newline)?;
+						newline(out, &indent, &mut has_newline)
 					},
 					Tag::BlockQuote => {
 						indent.pop_back();
-						newline(out, &indent)
+						newline(out, &indent, &mut has_newline)
 					},
 					Tag::CodeBlock(_) => {
 						if !has_newline {
-							newline(out, &indent)?;
+							newline(out, &indent, &mut has_newline)?;
 						}
 						write!(out, "```")?;
-						newline(out, &indent)?;
-						newline(out, &indent)
+						newline(out, &indent, &mut has_newline)?;
+						newline(out, &indent, &mut has_newline)
 					},
-					Tag::List(_) => newline(out, &indent),
+					Tag::List(_) => Ok(()),
 					Tag::Item => {
 						indent.pop_back();
-						newline(out, &indent)
+						newline(out, &indent, &mut has_newline)
 					},
 					Tag::FootnoteDefinition(_) => unimplemented!(),
-					Tag::Table(_) => newline(out, &indent),
+					Tag::Table(_) => newline(out, &indent, &mut has_newline),
 					Tag::TableHead => {
-						newline(out, &indent)?;
+						newline(out, &indent, &mut has_newline)?;
 						write!(out, "|")?;
 						for a in &alignments {
 							match a {
@@ -254,9 +266,9 @@ impl<'a> Readme<'a> {
 							}?;
 							write!(out, "|")?;
 						}
-						newline(out, &indent)
+						newline(out, &indent, &mut has_newline)
 					},
-					Tag::TableRow => newline(out, &indent),
+					Tag::TableRow => newline(out, &indent, &mut has_newline),
 					Tag::TableCell => write!(out, " |"),
 					Tag::Emphasis => write!(out, "*"),
 					Tag::Strong => write!(out, "**"),
@@ -298,7 +310,7 @@ impl<'a> Readme<'a> {
 						}
 
 						if !first_line {
-							newline(out, &indent)?;
+							newline(out, &indent, &mut has_newline)?;
 						}
 						first_line = false;
 
@@ -306,7 +318,7 @@ impl<'a> Readme<'a> {
 						write!(out, "{line}")?;
 					}
 					if has_newline && !empty {
-						newline(out, &indent)?;
+						newline(out, &indent, &mut has_newline)?;
 					}
 					Ok(())
 				},
