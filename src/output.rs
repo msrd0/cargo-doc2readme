@@ -247,7 +247,11 @@ impl<'a> Readme<'a> {
 						newline(out, &indent, &mut has_newline)?;
 						newline(out, &indent, &mut has_newline)
 					},
-					Tag::List(_) => Ok(()),
+					Tag::List(_) => {
+						let pop = lists.pop_back();
+						debug_assert!(pop.is_some());
+						Ok(())
+					},
 					Tag::Item => {
 						indent.pop_back();
 						newline(out, &indent, &mut has_newline)
