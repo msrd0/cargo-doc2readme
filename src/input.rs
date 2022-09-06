@@ -1,8 +1,6 @@
 use anyhow::{bail, Context};
-use cargo::{
-	core::{Edition, Manifest, Registry, Summary, Target, TargetKind},
-	util::OptVersionReq
-};
+use cargo_metadata::{Edition, Metadata, Package, Target};
+use log::{info, warn};
 use semver::{Comparator, Op, Version, VersionReq};
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
@@ -10,8 +8,7 @@ use std::{
 	fs::File,
 	io::{self, Read, Write},
 	path::Path,
-	process::{Command, Output},
-	task::Poll
+	process::{Command, Output}
 };
 use syn::{Attribute, Ident, Item, ItemUse, Lit, LitStr, Meta, UsePath, UseTree, Visibility};
 use unindent::Unindent;
@@ -115,7 +112,7 @@ impl Scope {
 			has_glob_use: false
 		};
 
-		if edition >= Edition::Edition2021 {
+		if edition >= Edition::E2021 {
 			// https://blog.rust-lang.org/2021/05/11/edition-2021.html#additions-to-the-prelude
 			for (key, value) in make_prelude([
 				("TryInto", "convert"),
@@ -134,9 +131,9 @@ impl Scope {
 pub struct CrateCode(String);
 
 impl CrateCode {
-	pub(crate) fn read_from_disk<P>(path: &P) -> anyhow::Result<CrateCode>
+	pub(crate) fn read_from_disk<P>(path: P) -> anyhow::Result<CrateCode>
 	where
-		P: AsRef<Path> + ?Sized
+		P: AsRef<Path>
 	{
 		let mut file = File::open(path)?;
 		let mut buf = String::new();
@@ -145,26 +142,26 @@ impl CrateCode {
 		Ok(CrateCode(buf))
 	}
 
-	pub(crate) fn read_expansion<P>(manifest_path: &P, target: &Target) -> anyhow::Result<CrateCode>
+	pub(crate) fn read_expansion<P>(
+		manifest_path: Option<P>,
+		target: &Target
+	) -> anyhow::Result<CrateCode>
 	where
-		P: AsRef<Path> + ?Sized
+		P: AsRef<Path>
 	{
 		let mut cmd = Command::new("cargo");
-		cmd.arg("+nightly").arg("rustc").arg(format!(
-			"--manifest-path={}",
-			manifest_path.as_ref().display()
-		));
-		match target.kind() {
-			TargetKind::Lib(_) => {
-				cmd.arg("--lib");
-			},
-			TargetKind::Bin => {
-				cmd.arg("--bin").arg(target.name());
-			},
-			_ => {}
-		};
+		cmd.arg("+nightly").arg("rustc");
+		if let Some(manifest_path) = manifest_path {
+			cmd.arg("--manifest-path").arg(manifest_path.as_ref());
+		}
+		if target.kind.iter().any(|kind| kind == "lib") {
+			cmd.arg("--lib");
+		} else if target.kind.iter().any(|kind| kind == "bin") {
+			cmd.arg("--bin").arg(&target.name);
+		}
 		cmd.arg("--").arg("-Zunpretty=expanded");
 
+		info!("Running rustc -Zunpretty=expanded");
 		let Output {
 			stdout,
 			stderr,
@@ -241,20 +238,16 @@ impl Debug for Dependency {
 	}
 }
 
-pub fn read_code(
-	manifest: &Manifest,
-	registry: &mut dyn Registry,
-	code: CrateCode
-) -> anyhow::Result<InputFile> {
-	let crate_name = manifest.name().to_string();
-	let repository = manifest.metadata().repository.clone();
-	let license = manifest.metadata().license.clone();
+pub fn read_code(metadata: &Metadata, pkg: &Package, code: CrateCode) -> anyhow::Result<InputFile> {
+	let crate_name = pkg.name.clone();
+	let repository = pkg.repository.clone();
+	let license = pkg.license.clone();
 
 	let file = syn::parse_file(code.0.as_str())?;
 
 	let rustdoc = read_rustdoc_from_file(&file)?;
-	let dependencies = resolve_dependencies(manifest, registry)?;
-	let scope = read_scope_from_file(manifest, &file)?;
+	let dependencies = resolve_dependencies(metadata, pkg)?;
+	let scope = read_scope_from_file(pkg, &file)?;
 
 	Ok(InputFile {
 		crate_name,
@@ -292,9 +285,13 @@ fn parse_doc_attr(input: &Attribute) -> syn::Result<Option<LitStr>> {
 	})
 }
 
+fn sanitize_crate_name<T: AsRef<str>>(name: T) -> String {
+	name.as_ref().replace('-', "_")
+}
+
 fn resolve_dependencies(
-	manifest: &Manifest,
-	registry: &mut dyn Registry
+	metadata: &Metadata,
+	pkg: &Package
 ) -> anyhow::Result<HashMap<String, Dependency>> {
 	let mut deps = HashMap::new();
 
@@ -303,11 +300,11 @@ fn resolve_dependencies(
 	// the repository readme points to some rustdoc generated from the master branch, instead of
 	// the last release. Also, the version in the current manifest might not be released, so
 	// those links might be dead.
-	let version = manifest.version().clone();
+	let version = pkg.version.clone();
 	deps.insert(
-		manifest.name().to_string().replace('-', "_"),
+		sanitize_crate_name(&pkg.name),
 		Dependency::new(
-			manifest.name().to_string(),
+			pkg.name.clone(),
 			[Comparator {
 				op: Op::Exact,
 				major: version.major,
@@ -321,53 +318,28 @@ fn resolve_dependencies(
 		)
 	);
 
-	let pending_deps = manifest
-		.dependencies()
-		.iter()
-		.filter_map(|dep| {
-			let dep_name = dep.name_in_toml().to_string().replace('-', "_");
-			let mut add_dep = |crate_name: String, req: &VersionReq, version: &Version| {
-				if deps
-					.get(&dep_name)
-					.map(|dep| &dep.version < version)
-					.unwrap_or(true)
-				{
-					deps.insert(
-						dep_name.clone(),
-						Dependency::new(crate_name, req.clone(), version.clone())
-					);
-				}
-			};
+	for dep in &pkg.dependencies {
+		let dep_name = sanitize_crate_name(&dep.name);
+		let version = metadata
+			.packages
+			.iter()
+			.find(|pkg| pkg.name == dep.name)
+			.map(|pkg| &pkg.version);
+		let rename = dep.rename.as_ref().unwrap_or(&dep_name);
 
-			match dep.version_req() {
-				OptVersionReq::Locked(version, req) => {
-					add_dep(dep.package_name().to_string(), req, version);
-					None
-				},
-				OptVersionReq::Req(req) => {
-					let mut f = |sum: Summary| {
-						add_dep(sum.name().to_string(), req, sum.version());
-					};
-					Some(registry.query(dep, &mut f, false))
-				},
-				_ => {
-					let mut f = |sum: Summary| {
-						add_dep(sum.name().to_string(), &VersionReq::STAR, sum.version());
-					};
-					Some(registry.query(dep, &mut f, false))
-				}
+		if let Some(version) = version {
+			if deps
+				.get(&dep_name)
+				.map(|dep| dep.version < *version)
+				.unwrap_or(true)
+			{
+				deps.insert(
+					rename.to_owned(),
+					Dependency::new(dep_name, dep.req.clone(), version.to_owned())
+				);
 			}
-		})
-		.collect::<Vec<_>>();
-
-	registry
-		.block_until_ready()
-		.expect("Failed to wait for dependency resolver");
-
-	for dep in pending_deps {
-		match dep {
-			Poll::Ready(dep) => dep.expect("Failed to resolve dependency"),
-			_ => unreachable!("We've waited for the dependency to be ready")
+		} else {
+			warn!("Unable to find version of dependency {}", dep.name);
 		}
 	}
 
@@ -385,9 +357,9 @@ macro_rules! scope_insert {
 	}};
 }
 
-fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result<Scope> {
-	let crate_name = manifest.name().replace('-', "_");
-	let mut scope = Scope::prelude(manifest.edition());
+fn read_scope_from_file(pkg: &Package, file: &syn::File) -> anyhow::Result<Scope> {
+	let crate_name = sanitize_crate_name(&pkg.name);
+	let mut scope = Scope::prelude(pkg.edition.clone());
 
 	for i in &file.items {
 		match i {

@@ -1,7 +1,7 @@
 use crate::{depinfo::DependencyInfo, input::InputFile, output};
-use cargo::core::Shell;
+use log::{debug, error, info};
 use memchr::{memchr2, memmem};
-use std::{cell::RefMut, io, process::ExitCode};
+use std::{io, process::ExitCode};
 
 pub enum Check {
 	/// Everything is up to date.
@@ -24,22 +24,21 @@ pub enum Check {
 }
 
 impl Check {
-	pub fn print(&self, mut shell: RefMut<'_, Shell>) {
+	pub fn print(&self) {
 		match self {
-			Check::UpToDate => shell.note("Readme is up to date"),
+			Check::UpToDate => info!("Readme is up to date"),
 			Check::InvalidDepInfo(e) => {
-				shell.error(format!("Readme has invalid dependency info: {e}"))
+				error!("Readme has invalid dependency info: {e}")
 			},
-			Check::InputChanged => shell.error("Input has changed"),
-			Check::IncompatibleVersion(name) => shell.error(format!(
-				"Readme links to incompatible version of dependency `{name}`"
-			)),
+			Check::InputChanged => error!("Input has changed"),
+			Check::IncompatibleVersion(name) => {
+				error!("Readme links to incompatible version of dependency `{name}`")
+			},
 			Check::OutdatedMarkdown => {
-				shell.error("The readme was created with an outdated version of this tool")
+				error!("The readme was created with an outdated version of this tool")
 			},
-			Check::OutputChanged => shell.error("Readme has changed")
+			Check::OutputChanged => error!("Readme has changed")
 		}
-		.ok();
 	}
 }
 
@@ -53,7 +52,6 @@ impl From<Check> for ExitCode {
 }
 
 pub fn check_up2date(
-	mut shell: RefMut<'_, Shell>,
 	input: InputFile,
 	template: &str,
 	check_file: &mut dyn io::Read
@@ -86,11 +84,7 @@ pub fn check_up2date(
 		// ensure that the dependencies that were used in the readme still meet the current required
 		// versions. dependencies that are missing in the readme don't matter.
 		for (lib_name, dep) in &input.dependencies {
-			shell
-				.verbose(|shell| {
-					shell.status("Checking", format!("{} = \"{}\"", dep.crate_name, dep.req))
-				})
-				.ok();
+			debug!("Checking {} = \"{}\"", dep.crate_name, dep.req);
 			if !depinfo.check_dependency(&dep.crate_name, Some(&dep.req), lib_name, true) {
 				return Ok(Check::IncompatibleVersion(dep.crate_name.clone()));
 			}

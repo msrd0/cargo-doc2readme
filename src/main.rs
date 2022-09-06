@@ -1,5 +1,6 @@
 #![warn(rust_2018_idioms, rustdoc::broken_intra_doc_links)]
-#![deny(elided_lifetimes_in_paths, unsafe_code)]
+#![deny(elided_lifetimes_in_paths)]
+#![forbid(unsafe_code)]
 
 //! `cargo doc2readme` is a cargo subcommand to create a readme file to display on
 //! [GitHub] or [crates.io],
@@ -60,15 +61,8 @@
 //!  [cargo-readme]: https://github.com/livioribeiro/cargo-readme
 //!  [docs.rs]: https://docs.rs
 
-use cargo::{
-	core::{
-		registry::{LockedPatchDependency, PackageRegistry},
-		Dependency, EitherManifest, SourceId, Verbosity
-	},
-	util::{important_paths::find_root_manifest_for_wd, toml::read_manifest},
-	Config as CargoConfig
-};
 use clap::Parser;
+use log::{debug, error, info, warn, Level};
 use std::{
 	borrow::Cow,
 	env,
@@ -83,6 +77,7 @@ mod input;
 mod output;
 mod verify;
 
+use cargo_metadata::MetadataCommand;
 use input::CrateCode;
 
 #[derive(Parser)]
@@ -134,76 +129,53 @@ fn main() -> ExitCode {
 		_ => Args::parse()
 	};
 
+	simple_logger::init_with_level(args.verbose.then(|| Level::Debug).unwrap_or(Level::Info))
+		.expect("Failed to initialize logger");
+
 	// get the cargo manifest path
 	let manifest_path = match args.manifest_path {
-		Some(path) if path.is_relative() => env::current_dir().unwrap().join(path),
-		Some(path) => path,
-		None => find_root_manifest_for_wd(&env::current_dir().unwrap())
-			.expect("Unable to find Cargo.toml")
+		Some(path) if path.is_relative() => Some(env::current_dir().unwrap().join(path)),
+		Some(path) => Some(path),
+		None => None
 	};
 
-	// initialize cargo
-	let cargo_cfg = CargoConfig::default().expect("Failed to initialize cargo");
-	cargo_cfg.shell().set_verbosity(
-		args.verbose
-			.then(|| Verbosity::Verbose)
-			.unwrap_or(Verbosity::Normal)
-	);
-
-	// parse the cargo manifest
-	let src_id = SourceId::for_path(&manifest_path).expect("Failed to obtain source id");
-	let manifest =
-		read_manifest(&manifest_path, src_id, &cargo_cfg).expect("Failed to read Cargo.toml");
-	let manifest = match manifest {
-		(EitherManifest::Real(manifest), _) => manifest,
-		(EitherManifest::Virtual(_), _) => {
-			cargo_cfg
-				.shell()
-				.error("Virtual manifests (i.e. pure workspace roots) are not supported.")
-				.unwrap();
-			return ExitCode::FAILURE;
-		}
-	};
+	// parse the cargo metadata
+	let mut cmd = MetadataCommand::new();
+	if let Some(path) = &manifest_path {
+		cmd.manifest_path(path);
+	}
+	let metadata = cmd.exec().expect("Failed to get cargo metadata");
+	let pkg = metadata
+		.root_package()
+		.expect("Missing root package; did you call this command on a workspace root?");
 
 	// find the target whose rustdoc comment we'll use.
 	// this uses a library target if exists, otherwise a binary target with the same name as the
 	// package, or otherwise the first binary target
-	let targets = manifest.targets();
-	let target = targets
+	let target = pkg
+		.targets
 		.iter()
-		.find(|target| target.is_lib())
+		.find(|target| target.kind.iter().any(|kind| kind == "lib"))
 		.or_else(|| {
-			targets
-				.iter()
-				.find(|target| target.is_bin() && target.name() == manifest.name().as_str())
+			pkg.targets.iter().find(|target| {
+				target.kind.iter().any(|kind| kind == "bin") && target.name == pkg.name.as_str()
+			})
 		})
-		.or_else(|| targets.iter().find(|target| target.is_bin()))
+		.or_else(|| {
+			pkg.targets
+				.iter()
+				.find(|target| target.kind.iter().any(|kind| kind == "bin"))
+		})
 		.expect("Failed to find a library or binary target");
 
 	// read crate code
-	let file = target
-		.src_path()
-		.path()
-		.expect("Target does not have a source file");
+	let file = target.src_path.as_std_path();
 	let code = if args.expand_macros {
-		CrateCode::read_expansion(manifest_path.as_path(), target)
+		CrateCode::read_expansion(manifest_path.as_ref(), target)
 			.expect("Failed to read crate code")
 	} else {
 		CrateCode::read_from_disk(file).expect("Failed to read crate code")
 	};
-
-	// initialize the crate registry
-	let _guard = cargo_cfg
-		.acquire_package_cache_lock()
-		.expect("Failed to aquire package cache lock");
-	let mut registry =
-		PackageRegistry::new(&cargo_cfg).expect("Failed to initialize crate registry");
-	for (url, deps) in manifest.patch() {
-		let deps: Vec<(&Dependency, Option<LockedPatchDependency>)> =
-			deps.iter().map(|dep| (dep, None)).collect();
-		registry.patch(url, &deps).expect("Failed to apply patches");
-	}
-	registry.lock_patches();
 
 	// resolve the template
 	let template: Cow<'static, str> = if args.template.exists() {
@@ -217,18 +189,12 @@ fn main() -> ExitCode {
 		include_str!("README.j2").into()
 	};
 
-	// Configure git transport ( makes cargo compatible with HTTP proxies )
-	init_git_transports(&cargo_cfg);
-
 	// process the target
-	cargo_cfg.shell().status("Reading", file.display()).ok();
-	let input_file = input::read_code(&manifest, &mut registry, code).expect("Unable to read file");
-	cargo_cfg
-		.shell()
-		.verbose(|shell| shell.status("Processing", format_args!("{input_file:#?}")))
-		.ok();
+	info!("Reading {}", file.display());
+	let input_file = input::read_code(&metadata, pkg, code).expect("Unable to read file");
+	debug!("Processing {input_file:#?}");
 	if input_file.scope.has_glob_use {
-		cargo_cfg.shell().warn("Your code contains glob use statements (e.g. `use std::io::prelude::*;`). Those can lead to incomplete link generation.").ok();
+		warn!("Your code contains glob use statements (e.g. `use std::io::prelude::*;`). Those can lead to incomplete link generation.");
 	}
 	let out_is_stdout = args.out.to_str() == Some("-");
 	let out = if !out_is_stdout && args.out.is_relative() {
@@ -237,71 +203,34 @@ fn main() -> ExitCode {
 		args.out
 	};
 
-	let exit_code = if args.check {
-		cargo_cfg.shell().status("Reading", out.display()).ok();
+	if args.check {
+		info!("Reading {}", out.display());
 		match File::open(&out) {
 			Ok(mut file) => {
-				let check =
-					verify::check_up2date(cargo_cfg.shell(), input_file, &template, &mut file)
-						.expect("Failed to check readme");
-				check.print(cargo_cfg.shell());
+				let check = verify::check_up2date(input_file, &template, &mut file)
+					.expect("Failed to check readme");
+				check.print();
 				check.into()
 			},
 			Err(e) if e.kind() == io::ErrorKind::NotFound => {
-				cargo_cfg
-					.shell()
-					.error(&format!("File not found: {}", out.display()))
-					.ok();
+				error!("File not found: {}", out.display());
 				ExitCode::FAILURE
 			},
-			Err(e) => panic!("Unable to open file {}: {e}", out.display())
+			Err(e) => {
+				error!("Unable to open file {}: {e}", out.display());
+				ExitCode::FAILURE
+			}
 		}
 	} else {
 		if out_is_stdout {
-			cargo_cfg.shell().status("Writing", "to stdout").ok();
+			info!("Writing README to stdout");
 			output::emit(input_file, &template, &mut io::stdout())
 				.expect("Unable to write to stdout!");
 		} else {
-			cargo_cfg.shell().status("Writing", out.display()).ok();
+			info!("Writing README to {}", out.display());
 			let mut file = File::create(&out).expect("Unable to create output file");
 			output::emit(input_file, &template, &mut file).expect("Unable to write output file");
 		};
 		ExitCode::SUCCESS
-	};
-
-	cargo_cfg.release_package_cache_lock();
-	exit_code
-}
-
-// Copied from cargo crate:
-// https://github.com/rust-lang/cargo/blob/e870eac9967b132825116525476d6875c305e4d8/src/bin/cargo/main.rs#L199
-fn init_git_transports(config: &CargoConfig) {
-	// Only use a custom transport if any HTTP options are specified,
-	// such as proxies or custom certificate authorities. The custom
-	// transport, however, is not as well battle-tested.
-
-	match cargo::ops::needs_custom_http_transport(config) {
-		Ok(true) => {},
-		_ => return
-	}
-
-	let handle = match cargo::ops::http_handle(config) {
-		Ok(handle) => handle,
-		Err(..) => return
-	};
-
-	// The unsafety of the registration function derives from two aspects:
-	//
-	// 1. This call must be synchronized with all other registration calls as
-	//    well as construction of new transports.
-	// 2. The argument is leaked.
-	//
-	// We're clear on point (1) because this is only called at the start of this
-	// binary (we know what the state of the world looks like) and we're mostly
-	// clear on point (2) because we'd only free it after everything is done
-	// anyway
-	#[allow(unsafe_code)]
-	unsafe {
-		git2_curl::register(handle);
 	}
 }
