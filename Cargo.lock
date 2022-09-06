@@ -222,7 +222,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-doc2readme"
-version = "0.1.6"
+version = "0.2.0-dev"
 dependencies = [
  "anyhow",
  "base64",
