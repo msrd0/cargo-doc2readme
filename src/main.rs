@@ -61,25 +61,11 @@
 //!  [cargo-readme]: https://github.com/livioribeiro/cargo-readme
 //!  [docs.rs]: https://docs.rs
 
+use cargo_doc2readme::{output, read_input, verify};
 use clap::Parser;
-use log::{debug, error, info, warn, Level};
-use std::{
-	borrow::Cow,
-	env,
-	fs::File,
-	io::{self, Read},
-	path::PathBuf,
-	process::ExitCode
-};
-
-mod depinfo;
-mod input;
-mod output;
+use log::{error, info, warn, Level};
+use std::{env, fs::File, io, path::PathBuf, process::ExitCode};
 mod preproc;
-mod verify;
-
-use cargo_metadata::MetadataCommand;
-use input::CrateCode;
 
 #[derive(Parser)]
 enum Subcommand {
@@ -105,6 +91,14 @@ struct Args {
 	/// use function-like macros in doc attributes, as introduced in Rust 1.54.
 	#[clap(long)]
 	expand_macros: bool,
+
+	/// Prefer binary targets over library targets for rustdoc source.
+	#[clap(long, conflicts_with = "lib")]
+	bin: bool,
+
+	/// Prefer library targets over binary targets for rustdoc source. This is the default.
+	#[clap(long, conflicts_with = "bin")]
+	lib: bool,
 
 	/// Verify that the output file is (reasonably) up to date, and fail
 	/// if it needs updating. The output file will not be changed.
@@ -133,70 +127,13 @@ fn main() -> ExitCode {
 	simple_logger::init_with_level(args.verbose.then(|| Level::Debug).unwrap_or(Level::Info))
 		.expect("Failed to initialize logger");
 
-	// get the cargo manifest path
-	let manifest_path = match args.manifest_path {
-		Some(path) if path.is_relative() => Some(env::current_dir().unwrap().join(path)),
-		Some(path) => Some(path),
-		None => None
-	};
+	let (input_file, template) = read_input(
+		args.manifest_path,
+		args.bin,
+		args.expand_macros,
+		args.template
+	);
 
-	// parse the cargo metadata
-	let mut cmd = MetadataCommand::new();
-	if let Some(path) = &manifest_path {
-		cmd.manifest_path(path);
-	}
-	let metadata = cmd.exec().expect("Failed to get cargo metadata");
-	let pkg = metadata
-		.root_package()
-		.expect("Missing root package; did you call this command on a workspace root?");
-
-	// find the target whose rustdoc comment we'll use.
-	// this uses a library target if exists, otherwise a binary target with the same name as the
-	// package, or otherwise the first binary target
-	let target = pkg
-		.targets
-		.iter()
-		.find(|target| target.kind.iter().any(|kind| kind == "lib"))
-		.or_else(|| {
-			pkg.targets.iter().find(|target| {
-				target.kind.iter().any(|kind| kind == "bin") && target.name == pkg.name.as_str()
-			})
-		})
-		.or_else(|| {
-			pkg.targets
-				.iter()
-				.find(|target| target.kind.iter().any(|kind| kind == "bin"))
-		})
-		.expect("Failed to find a library or binary target");
-
-	// read crate code
-	let file = target.src_path.as_std_path();
-	let code = if args.expand_macros {
-		CrateCode::read_expansion(manifest_path.as_ref(), target)
-			.expect("Failed to read crate code")
-	} else {
-		CrateCode::read_from_disk(file).expect("Failed to read crate code")
-	};
-
-	// resolve the template
-	let template: Cow<'static, str> = if args.template.exists() {
-		let mut buf = String::new();
-		File::open(args.template)
-			.expect("Failed to open template")
-			.read_to_string(&mut buf)
-			.expect("Failed to read template");
-		buf.into()
-	} else {
-		include_str!("README.j2").into()
-	};
-
-	// process the target
-	info!("Reading {}", file.display());
-	let input_file = input::read_code(&metadata, pkg, code).expect("Unable to read file");
-	debug!("Processing {input_file:#?}");
-	if input_file.scope.has_glob_use {
-		warn!("Your code contains glob use statements (e.g. `use std::io::prelude::*;`). Those can lead to incomplete link generation.");
-	}
 	let out_is_stdout = args.out.to_str() == Some("-");
 	let out = if !out_is_stdout && args.out.is_relative() {
 		env::current_dir().unwrap().join(args.out)

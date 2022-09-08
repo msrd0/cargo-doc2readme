@@ -142,17 +142,14 @@ impl CrateCode {
 		Ok(Self(buf))
 	}
 
-	pub(crate) fn read_from_disk<P>(path: P) -> io::Result<Self>
+	pub fn read_from_disk<P>(path: P) -> io::Result<Self>
 	where
 		P: AsRef<Path>
 	{
 		Self::read_from(BufReader::new(File::open(path)?))
 	}
 
-	pub(crate) fn read_expansion<P>(
-		manifest_path: Option<P>,
-		target: &Target
-	) -> anyhow::Result<CrateCode>
+	pub fn read_expansion<P>(manifest_path: Option<P>, target: &Target) -> anyhow::Result<CrateCode>
 	where
 		P: AsRef<Path>
 	{
