@@ -25,7 +25,10 @@ jobs:
             target
           key: ${{ runner.os }}-rust-${{ steps.rust-version.outputs.version }}
       
-      - run: cargo test && cargo run && git diff --exit-code README.md
+      - run: |
+          cargo test
+          cargo run -- --bin
+          git diff --exit-code README.md
         env:
           RUST_BACKTRACE: 1
           RUST_LOG: info
