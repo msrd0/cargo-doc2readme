@@ -65,7 +65,6 @@ use cargo_doc2readme::{output, read_input, verify};
 use clap::Parser;
 use log::{error, info, warn, Level};
 use std::{env, fs::File, io, path::PathBuf, process::ExitCode};
-mod preproc;
 
 #[derive(Parser)]
 enum Subcommand {
