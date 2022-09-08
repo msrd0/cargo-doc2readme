@@ -1,17 +1,17 @@
+use crate::preproc::Preprocessor;
 use anyhow::{bail, Context};
 use cargo_metadata::{Edition, Metadata, Package, Target};
-use log::{info, warn};
+use log::{debug, info, warn};
 use semver::{Comparator, Op, Version, VersionReq};
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
 	fmt::{self, Debug, Formatter},
 	fs::File,
-	io::{self, Read, Write},
+	io::{self, BufReader, Cursor, Read, Write},
 	path::Path,
 	process::{Command, Output}
 };
 use syn::{Attribute, Ident, Item, ItemUse, Lit, LitStr, Meta, UsePath, UseTree, Visibility};
-use unindent::Unindent;
 
 type ScopeScope = HashMap<String, VecDeque<(LinkType, String)>>;
 
@@ -131,15 +131,22 @@ impl Scope {
 pub struct CrateCode(String);
 
 impl CrateCode {
-	pub(crate) fn read_from_disk<P>(path: P) -> anyhow::Result<CrateCode>
+	fn read_from<R>(read: R) -> io::Result<Self>
+	where
+		R: io::BufRead
+	{
+		let mut preproc = Preprocessor::new(read);
+		let mut buf = String::new();
+		preproc.read_to_string(&mut buf)?;
+
+		Ok(Self(buf))
+	}
+
+	pub(crate) fn read_from_disk<P>(path: P) -> io::Result<Self>
 	where
 		P: AsRef<Path>
 	{
-		let mut file = File::open(path)?;
-		let mut buf = String::new();
-		file.read_to_string(&mut buf)?;
-
-		Ok(CrateCode(buf))
+		Self::read_from(BufReader::new(File::open(path)?))
 	}
 
 	pub(crate) fn read_expansion<P>(
@@ -180,9 +187,7 @@ impl CrateCode {
 			bail!("Cargo failed to expand the macros")
 		}
 
-		String::from_utf8(stdout)
-			.context("Failed to convert cargo output to UTF-8")
-			.map(CrateCode)
+		Ok(Self::read_from(Cursor::new(stdout))?)
 	}
 }
 
@@ -246,6 +251,7 @@ pub fn read_code(metadata: &Metadata, pkg: &Package, code: CrateCode) -> anyhow:
 	let license = pkg.license.clone();
 	let rust_version = pkg.rust_version.clone();
 
+	debug!("Reading code \n{}", code.0);
 	let file = syn::parse_file(code.0.as_str())?;
 
 	let rustdoc = read_rustdoc_from_file(&file)?;
@@ -274,7 +280,7 @@ fn read_rustdoc_from_file(file: &syn::File) -> anyhow::Result<String> {
 			}
 		}
 	}
-	Ok(doc.unindent())
+	Ok(doc)
 }
 
 fn parse_doc_attr(input: &Attribute) -> syn::Result<Option<LitStr>> {

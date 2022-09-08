@@ -156,7 +156,6 @@ dependencies = [
  "simple_logger",
  "syn",
  "tera",
- "unindent",
  "url",
 ]
 
@@ -451,12 +450,9 @@ dependencies = [
 
 [[package]]
 name = "indoc"
-version = "1.0.5"
+version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a8c9da27a49b1504a78476c7105eb4686f93235fd445444a84e92df5ce6937c"
-dependencies = [
- "unindent",
-]
+checksum = "adab1eaa3408fb7f0c777a73e7465fd5656136fc93b670eb6df3c88c2c1344e3"
 
 [[package]]
 name = "itertools"
@@ -970,12 +966,6 @@ checksum = "854cbdc4f7bc6ae19c820d44abdc3277ac3e1b2b93db20a636825d9322fb60e6"
 dependencies = [
  "tinyvec",
 ]
-
-[[package]]
-name = "unindent"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52fee519a3e570f7df377a06a1a7775cdbfb7aa460be7e08de2b1f0e69973a44"
 
 [[package]]
 name = "url"

@@ -75,6 +75,7 @@ use std::{
 mod depinfo;
 mod input;
 mod output;
+mod preproc;
 mod verify;
 
 use cargo_metadata::MetadataCommand;
