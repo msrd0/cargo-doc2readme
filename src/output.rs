@@ -2,7 +2,6 @@ use crate::{
 	depinfo::DependencyInfo,
 	input::{Dependency, InputFile, Scope}
 };
-use anyhow::anyhow;
 use either::Either;
 use itertools::Itertools;
 use pulldown_cmark::{
@@ -428,15 +427,16 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 	ctx.insert("crate", &input.crate_name);
 	if let Some(repo) = input.repository.as_deref() {
 		ctx.insert("repository", &repo);
-		ctx.insert(
-			"repository_host",
-			Url::parse(repo)?
-				.host_str()
-				.ok_or_else(|| anyhow!("repository url should have a host"))?
-		);
+		let url = Url::parse(repo).ok();
+		if let Some(host) = url.as_ref().and_then(|url| url.host_str()) {
+			ctx.insert("repository_host", host)
+		}
 	}
 	if let Some(license) = input.license.as_deref() {
 		ctx.insert("license", license);
+	}
+	if let Some(rust_version) = &input.rust_version {
+		ctx.insert("rust_version", rust_version);
 	}
 	ctx.insert("readme", &readme.readme);
 	ctx.insert("links", &readme.readme_links);
