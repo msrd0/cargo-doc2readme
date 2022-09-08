@@ -20,7 +20,7 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 	let parent = manifest_path.parent().unwrap();
 	let template_path = parent.join("README.j2");
 	let readme_path = parent.join("README.md");
-	let (input_file, template) = read_input(Some(manifest_path), false, template_path);
+	let (input_file, template) = read_input(Some(manifest_path), false, false, template_path);
 	let mut actual = Vec::<u8>::new();
 	output::emit(input_file, &template, &mut actual)?;
 
