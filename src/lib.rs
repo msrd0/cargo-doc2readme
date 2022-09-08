@@ -16,6 +16,9 @@ pub mod input;
 pub mod output;
 
 #[doc(hidden)]
+pub mod preproc;
+
+#[doc(hidden)]
 pub mod verify;
 
 use input::{CrateCode, InputFile};
