@@ -131,7 +131,7 @@ impl Scope {
 pub struct CrateCode(String);
 
 impl CrateCode {
-	pub(crate) fn read_from_disk<P>(path: P) -> anyhow::Result<CrateCode>
+	pub fn read_from_disk<P>(path: P) -> anyhow::Result<CrateCode>
 	where
 		P: AsRef<Path>
 	{
@@ -142,10 +142,7 @@ impl CrateCode {
 		Ok(CrateCode(buf))
 	}
 
-	pub(crate) fn read_expansion<P>(
-		manifest_path: Option<P>,
-		target: &Target
-	) -> anyhow::Result<CrateCode>
+	pub fn read_expansion<P>(manifest_path: Option<P>, target: &Target) -> anyhow::Result<CrateCode>
 	where
 		P: AsRef<Path>
 	{
