@@ -77,7 +77,7 @@ mod input;
 mod output;
 mod verify;
 
-use cargo_metadata::MetadataCommand;
+use cargo_metadata::{MetadataCommand, Target};
 use input::CrateCode;
 
 #[derive(Parser)]
@@ -104,6 +104,14 @@ struct Args {
 	/// use function-like macros in doc attributes, as introduced in Rust 1.54.
 	#[clap(long)]
 	expand_macros: bool,
+
+	/// Prefer binary targets over library targets for rustdoc source.
+	#[clap(long, conflicts_with = "lib")]
+	bin: bool,
+
+	/// Prefer library targets over binary targets for rustdoc source. This is the default.
+	#[clap(long, conflicts_with = "bin")]
+	lib: bool,
 
 	/// Verify that the output file is (reasonably) up to date, and fail
 	/// if it needs updating. The output file will not be changed.
@@ -152,15 +160,22 @@ fn main() -> ExitCode {
 	// find the target whose rustdoc comment we'll use.
 	// this uses a library target if exists, otherwise a binary target with the same name as the
 	// package, or otherwise the first binary target
-	let target = pkg
-		.targets
-		.iter()
-		.find(|target| target.kind.iter().any(|kind| kind == "lib"))
-		.or_else(|| {
-			pkg.targets.iter().find(|target| {
-				target.kind.iter().any(|kind| kind == "bin") && target.name == pkg.name.as_str()
-			})
-		})
+	let is_lib = |target: &&Target| target.kind.iter().any(|kind| kind == "lib");
+	let is_bin = |target: &&Target| {
+		target.kind.iter().any(|kind| kind == "bin") && target.name == pkg.name.as_str()
+	};
+	let target = if args.bin {
+		pkg.targets
+			.iter()
+			.find(is_lib)
+			.or_else(|| pkg.targets.iter().find(is_bin))
+	} else {
+		pkg.targets
+			.iter()
+			.find(is_bin)
+			.or_else(|| pkg.targets.iter().find(is_lib))
+	};
+	let target = target
 		.or_else(|| {
 			pkg.targets
 				.iter()
