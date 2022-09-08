@@ -33,6 +33,8 @@ impl<R> Preprocessor<io::Lines<R>>
 where
 	R: io::BufRead
 {
+	// https://github.com/rust-lang/rust/issues/101582
+	#[allow(dead_code)]
 	pub fn new(read: R) -> Self {
 		Self {
 			lines: read.lines().peekable(),
