@@ -58,13 +58,13 @@ pub fn read_input(
 	let target = if prefer_bin {
 		pkg.targets
 			.iter()
-			.find(is_lib)
-			.or_else(|| pkg.targets.iter().find(is_bin))
+			.find(is_bin)
+			.or_else(|| pkg.targets.iter().find(is_lib))
 	} else {
 		pkg.targets
 			.iter()
-			.find(is_bin)
-			.or_else(|| pkg.targets.iter().find(is_lib))
+			.find(is_lib)
+			.or_else(|| pkg.targets.iter().find(is_bin))
 	};
 	let target = target
 		.or_else(|| {
