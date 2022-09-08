@@ -194,6 +194,8 @@ pub struct InputFile {
 	pub repository: Option<String>,
 	/// The license field (if specified).
 	pub license: Option<String>,
+	/// The rust_version field (if specified).
+	pub rust_version: Option<VersionReq>,
 	/// The unmodified rustdoc string
 	pub rustdoc: String,
 	/// The crate-level dependencies, mapping the valid identifier in rust code to the (possibly
@@ -242,6 +244,7 @@ pub fn read_code(metadata: &Metadata, pkg: &Package, code: CrateCode) -> anyhow:
 	let crate_name = pkg.name.clone();
 	let repository = pkg.repository.clone();
 	let license = pkg.license.clone();
+	let rust_version = pkg.rust_version.clone();
 
 	let file = syn::parse_file(code.0.as_str())?;
 
@@ -253,6 +256,7 @@ pub fn read_code(metadata: &Metadata, pkg: &Package, code: CrateCode) -> anyhow:
 		crate_name,
 		repository,
 		license,
+		rust_version,
 		rustdoc,
 		dependencies,
 		scope

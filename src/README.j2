@@ -9,6 +9,7 @@
 	{%- if crate is defined %} [![{{ crate }} on crates.io](https://img.shields.io/crates/v/{{ crate | urlencode }})](https://crates.io/crates/{{ crate | urlencode }}){% endif %}
 	{%- if crate is defined %} [![{{ crate }} on docs.rs](https://docs.rs/{{ crate | urlencode }}/badge.svg)](https://docs.rs/{{ crate | urlencode }}){% endif %}
 	{%- if repository is defined %} [![Source Code Repository](https://img.shields.io/badge/Code-On%20{{ repository_host | replace(from="-", to="--") | urlencode }}-blue)]({{ repository }}){% endif %}
+	{%- if rust_version is defined %} ![Rust Version: {{rust_version}}](https://img.shields.io/badge/rustc-{{ rust_version | urlencode }}-orange.svg){% endif %}
 
 {{ readme }}
 
