@@ -91,6 +91,14 @@ struct Args {
 	#[clap(long)]
 	expand_macros: bool,
 
+	/// Prefer binary targets over library targets for rustdoc source.
+	#[clap(long, conflicts_with = "lib")]
+	bin: bool,
+
+	/// Prefer library targets over binary targets for rustdoc source. This is the default.
+	#[clap(long, conflicts_with = "bin")]
+	lib: bool,
+
 	/// Verify that the output file is (reasonably) up to date, and fail
 	/// if it needs updating. The output file will not be changed.
 	#[clap(long)]
@@ -118,7 +126,12 @@ fn main() -> ExitCode {
 	simple_logger::init_with_level(args.verbose.then(|| Level::Debug).unwrap_or(Level::Info))
 		.expect("Failed to initialize logger");
 
-	let (input_file, template) = read_input(args.manifest_path, args.expand_macros, args.template);
+	let (input_file, template) = read_input(
+		args.manifest_path,
+		args.bin,
+		args.expand_macros,
+		args.template
+	);
 
 	let out_is_stdout = args.out.to_str() == Some("-");
 	let out = if !out_is_stdout && args.out.is_relative() {

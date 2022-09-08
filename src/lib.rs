@@ -2,7 +2,7 @@
 //! ADHERE TO SEMVER. DON'T EVEN USE AT YOUR OWN RISK. DON'T USE IT
 //! AT ALL.**
 
-use cargo_metadata::MetadataCommand;
+use cargo_metadata::{MetadataCommand, Target};
 use log::{debug, info, warn};
 use std::{borrow::Cow, env, fs::File, io::Read as _, path::PathBuf};
 
@@ -27,6 +27,7 @@ use input::{CrateCode, InputFile};
 /// be used if it does not exist.
 pub fn read_input(
 	manifest_path: Option<PathBuf>,
+	prefer_bin: bool,
 	expand_macros: bool,
 	template: PathBuf
 ) -> (InputFile, Cow<'static, str>) {
@@ -50,15 +51,22 @@ pub fn read_input(
 	// find the target whose rustdoc comment we'll use.
 	// this uses a library target if exists, otherwise a binary target with the same name as the
 	// package, or otherwise the first binary target
-	let target = pkg
-		.targets
-		.iter()
-		.find(|target| target.kind.iter().any(|kind| kind == "lib"))
-		.or_else(|| {
-			pkg.targets.iter().find(|target| {
-				target.kind.iter().any(|kind| kind == "bin") && target.name == pkg.name.as_str()
-			})
-		})
+	let is_lib = |target: &&Target| target.kind.iter().any(|kind| kind == "lib");
+	let is_bin = |target: &&Target| {
+		target.kind.iter().any(|kind| kind == "bin") && target.name == pkg.name.as_str()
+	};
+	let target = if prefer_bin {
+		pkg.targets
+			.iter()
+			.find(is_lib)
+			.or_else(|| pkg.targets.iter().find(is_bin))
+	} else {
+		pkg.targets
+			.iter()
+			.find(is_bin)
+			.or_else(|| pkg.targets.iter().find(is_lib))
+	};
+	let target = target
 		.or_else(|| {
 			pkg.targets
 				.iter()
