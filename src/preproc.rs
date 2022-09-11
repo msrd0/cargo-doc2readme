@@ -41,13 +41,6 @@ where
 	}
 }
 
-fn take3<I>(iter: &mut I) -> Option<[I::Item; 3]>
-where
-	I: Iterator
-{
-	Some([iter.next()?, iter.next()?, iter.next()?])
-}
-
 impl<L> Preprocessor<L>
 where
 	L: Iterator<Item = io::Result<String>>
@@ -66,7 +59,7 @@ where
 				let indent = chars
 					.peeking_take_while(|ch| ch.is_whitespace())
 					.collect::<String>();
-				let style = take3(&mut chars).unwrap().into_iter().collect::<String>();
+				let style = (&mut chars).take(3).collect::<String>();
 				let comment_indent = chars
 					.peeking_take_while(|ch| ch.is_whitespace())
 					.collect::<String>();
