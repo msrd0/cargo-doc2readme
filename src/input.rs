@@ -32,6 +32,7 @@ pub struct Scope {
 pub enum LinkType {
 	Const,
 	Enum,
+	ExternCrate,
 	Function,
 	Macro,
 	Mod,
@@ -45,10 +46,7 @@ pub enum LinkType {
 	/// `use` statement that links to a path.
 	Use,
 	/// `pub use` statement that links to the name pub used as.
-	PubUse,
-
-	/// Other statements we'll implement later.
-	Other
+	PubUse
 }
 
 fn make_prelude<const N: usize>(prelude: [(&'static str, &'static str); N]) -> ScopeScope {
@@ -468,10 +466,11 @@ fn read_scope_from_file(manifest: &Manifest, file: &syn::File) -> anyhow::Result
 			Item::Const(i) => editor.insert(&i.ident, LinkType::Const),
 			Item::Enum(i) => editor.insert(&i.ident, LinkType::Enum),
 			Item::ExternCrate(i) if i.ident != "self" && i.rename.is_some() => {
-				let krate = &i.rename.as_ref().unwrap().1;
-				editor
-					.scope
-					.insert(krate.to_string(), LinkType::Other, format!("::{}", i.ident));
+				editor.scope.insert(
+					i.rename.as_ref().unwrap().1.to_string(),
+					LinkType::ExternCrate,
+					format!("::{}", i.ident)
+				);
 			},
 			Item::Fn(i) => editor.insert_fun(&i.sig.ident),
 			Item::Macro(i) if i.ident.is_some() => editor.insert_macro(i.ident.as_ref().unwrap()),
