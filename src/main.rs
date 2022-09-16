@@ -115,6 +115,15 @@ struct CmdLine {
 	cmd: Subcommand
 }
 
+macro_rules! exit_on_err {
+	($diagnostics:ident) => {
+		if $diagnostics.is_fail() {
+			$diagnostics.print().expect("Failed to print error message");
+			return ExitCode::FAILURE;
+		}
+	};
+}
+
 fn main() -> ExitCode {
 	let args = match env::args().nth(1) {
 		Some(subcmd) if subcmd == "doc2readme" => match CmdLine::parse().cmd {
@@ -126,12 +135,13 @@ fn main() -> ExitCode {
 	simple_logger::init_with_level(args.verbose.then(|| Level::Debug).unwrap_or(Level::Info))
 		.expect("Failed to initialize logger");
 
-	let (input_file, template) = read_input(
+	let (input_file, template, diagnostics) = read_input(
 		args.manifest_path,
 		args.bin,
 		args.expand_macros,
 		args.template
 	);
+	exit_on_err!(diagnostics);
 
 	let out_is_stdout = args.out.to_str() == Some("-");
 	let out = if !out_is_stdout && args.out.is_relative() {

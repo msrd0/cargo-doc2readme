@@ -1,7 +1,7 @@
-use crate::preproc::Preprocessor;
+use crate::{diagnostic::Diagnostic, preproc::Preprocessor};
 use anyhow::{bail, Context};
 use cargo_metadata::{Edition, Metadata, Package, Target};
-use log::{debug, info, warn};
+use log::{debug, info};
 use semver::{Comparator, Op, Version, VersionReq};
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
@@ -134,7 +134,7 @@ impl Scope {
 }
 
 #[derive(Debug)]
-pub struct CrateCode(String);
+pub struct CrateCode(pub String);
 
 impl CrateCode {
 	fn read_from<R>(read: R) -> io::Result<Self>
@@ -248,17 +248,28 @@ impl Debug for Dependency {
 	}
 }
 
-pub fn read_code(metadata: &Metadata, pkg: &Package, code: CrateCode) -> anyhow::Result<InputFile> {
+pub fn read_code(
+	metadata: &Metadata,
+	pkg: &Package,
+	code: CrateCode,
+	diagnostics: &mut Diagnostic
+) -> anyhow::Result<InputFile> {
 	let crate_name = pkg.name.clone();
 	let repository = pkg.repository.clone();
 	let license = pkg.license.clone();
 	let rust_version = pkg.rust_version.clone();
 
 	debug!("Reading code \n{}", code.0);
-	let file = syn::parse_file(code.0.as_str())?;
+	let file = match syn::parse_file(code.0.as_str()) {
+		Ok(file) => file,
+		Err(err) => {
+			diagnostics.syntax_error(err);
+			bail!("syntax error")
+		}
+	};
 
 	let rustdoc = read_rustdoc_from_file(&file)?;
-	let dependencies = resolve_dependencies(metadata, pkg)?;
+	let dependencies = resolve_dependencies(metadata, pkg, diagnostics);
 	let scope = read_scope_from_file(pkg, &file)?;
 
 	Ok(InputFile {
@@ -304,8 +315,9 @@ fn sanitize_crate_name<T: AsRef<str>>(name: T) -> String {
 
 fn resolve_dependencies(
 	metadata: &Metadata,
-	pkg: &Package
-) -> anyhow::Result<HashMap<String, Dependency>> {
+	pkg: &Package,
+	diagnostics: &mut Diagnostic
+) -> HashMap<String, Dependency> {
 	let mut deps = HashMap::new();
 
 	// we currently insert our own crate as a dependency to allow doc links referencing ourself.
@@ -352,11 +364,11 @@ fn resolve_dependencies(
 				);
 			}
 		} else {
-			warn!("Unable to find version of dependency {}", dep.name);
+			diagnostics.warn(format!("Unable to find version of dependency {}", dep.name));
 		}
 	}
 
-	Ok(deps)
+	deps
 }
 
 struct ScopeEditor<'a> {

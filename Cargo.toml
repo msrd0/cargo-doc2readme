@@ -20,6 +20,7 @@ harness = false
 
 [dependencies]
 anyhow = "1.0.64"
+ariadne = "0.1.5"
 base64 = "0.13"
 blake3 = "1.3"
 # waiting for https://github.com/oli-obk/cargo_metadata/pull/185 to be part of a release
@@ -30,6 +31,7 @@ itertools = "0.10"
 log = "0.4"
 memchr = "2.5"
 monostate = "0.1"
+proc-macro2 = { version = "1.0.42", features = ["span-locations"], default-features = false }
 pulldown-cmark = { version = "0.9", default-features = false }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
