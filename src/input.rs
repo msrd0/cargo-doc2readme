@@ -1,6 +1,6 @@
 use anyhow::{bail, Context};
 use cargo::{
-	core::{Edition, Manifest, Registry, Summary, Target, TargetKind},
+	core::{source::QueryKind, Edition, Manifest, Registry, Summary, Target, TargetKind},
 	util::OptVersionReq
 };
 use semver::{Comparator, Op, Version, VersionReq};
@@ -354,13 +354,13 @@ fn resolve_dependencies(
 					let mut f = |sum: Summary| {
 						add_dep(sum.name().to_string(), req, sum.version());
 					};
-					Some(registry.query(dep, &mut f, false))
+					Some(registry.query(dep, QueryKind::Exact, &mut f))
 				},
 				_ => {
 					let mut f = |sum: Summary| {
 						add_dep(sum.name().to_string(), &VersionReq::STAR, sum.version());
 					};
-					Some(registry.query(dep, &mut f, false))
+					Some(registry.query(dep, QueryKind::Exact, &mut f))
 				}
 			}
 		})
