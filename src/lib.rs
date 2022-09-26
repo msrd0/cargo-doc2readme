@@ -54,27 +54,21 @@ pub fn read_input(
 	// find the target whose rustdoc comment we'll use.
 	// this uses a library target if exists, otherwise a binary target with the same name as the
 	// package, or otherwise the first binary target
-	let is_lib = |target: &&Target| target.kind.iter().any(|kind| kind == "lib");
-	let is_bin = |target: &&Target| {
-		target.kind.iter().any(|kind| kind == "bin") && target.name == pkg.name.as_str()
-	};
+	let is_lib = |target: &&Target| target.is_lib();
+	let is_default_bin = |target: &&Target| target.is_bin() && target.name == pkg.name.as_str();
 	let target = if prefer_bin {
 		pkg.targets
 			.iter()
-			.find(is_bin)
+			.find(is_default_bin)
 			.or_else(|| pkg.targets.iter().find(is_lib))
 	} else {
 		pkg.targets
 			.iter()
 			.find(is_lib)
-			.or_else(|| pkg.targets.iter().find(is_bin))
+			.or_else(|| pkg.targets.iter().find(is_default_bin))
 	};
 	let target = target
-		.or_else(|| {
-			pkg.targets
-				.iter()
-				.find(|target| target.kind.iter().any(|kind| kind == "bin"))
-		})
+		.or_else(|| pkg.targets.iter().find(|target| target.is_bin()))
 		.expect("Failed to find a library or binary target");
 
 	// read crate code
