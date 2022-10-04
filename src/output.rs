@@ -7,14 +7,14 @@ use itertools::Itertools;
 use pulldown_cmark::{
 	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
 };
-use semver::Version;
+use semver::{Version, VersionReq};
+use serde::Serialize;
 use std::{
 	collections::{BTreeMap, VecDeque},
 	fmt::{self, Write as _},
 	io
 };
 use syn::Path;
-use tera::Tera;
 use url::Url;
 
 const DEFAULT_CODEBLOCK_LANG: &str = "rust";
@@ -414,6 +414,21 @@ impl<'a> Readme<'a> {
 	}
 }
 
+#[derive(Serialize)]
+struct TemplateContext<'a> {
+	#[serde(rename = "crate")]
+	krate: &'a str,
+
+	repository: Option<&'a str>,
+	repository_host: Option<String>,
+
+	license: Option<&'a str>,
+	rust_version: Option<&'a VersionReq>,
+
+	readme: String,
+	links: String
+}
+
 pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> anyhow::Result<()> {
 	let mut readme = Readme::new(template, &input);
 
@@ -423,25 +438,26 @@ pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> a
 
 	readme.write_links();
 
-	let mut ctx = tera::Context::new();
-	ctx.insert("crate", &input.crate_name);
-	if let Some(repo) = input.repository.as_deref() {
-		ctx.insert("repository", &repo);
-		let url = Url::parse(repo).ok();
-		if let Some(host) = url.as_ref().and_then(|url| url.host_str()) {
-			ctx.insert("repository_host", host)
-		}
-	}
-	if let Some(license) = input.license.as_deref() {
-		ctx.insert("license", license);
-	}
-	if let Some(rust_version) = &input.rust_version {
-		ctx.insert("rust_version", rust_version);
-	}
-	ctx.insert("readme", &readme.readme);
-	ctx.insert("links", &readme.readme_links);
-	let str = Tera::one_off(template, &ctx, false /* no auto-escaping */)?;
-	write!(out_file, "{}", str)?;
+	let repository = input.repository.as_deref();
+	let ctx = TemplateContext {
+		krate: &input.crate_name,
+		repository,
+		repository_host: repository.and_then(|repo| {
+			let url = Url::parse(repo).ok();
+			url.as_ref()
+				.and_then(|url| url.host_str())
+				.map(String::from)
+		}),
+		license: input.license.as_deref(),
+		rust_version: input.rust_version.as_ref(),
+		readme: readme.readme,
+		links: readme.readme_links
+	};
+
+	let mut env = minijinja::Environment::new();
+	env.add_template("template", template)?;
+	env.get_template("template")?
+		.render_to_write(ctx, out_file)?;
 
 	Ok(())
 }

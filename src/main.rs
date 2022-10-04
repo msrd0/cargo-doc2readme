@@ -81,7 +81,7 @@ struct Args {
 	#[clap(short, long, default_value = "README.md")]
 	out: PathBuf,
 
-	/// Template File. This is processed by Tera. Look at the source code for cargo-doc2readme for
+	/// Template File. This is processed by minijinja. Look at the source code for cargo-doc2readme for
 	/// an example.
 	#[clap(short, long, default_value = "README.j2")]
 	template: PathBuf,
