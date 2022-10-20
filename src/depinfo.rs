@@ -14,10 +14,10 @@ impl HashDef {
 	{
 		let parts = <(u64, u64, u64, u64)>::deserialize(deserializer)?;
 		let mut hash = [0u8; 32];
-		hash[0..8].clone_from_slice(&parts.0.to_be_bytes());
-		hash[8..16].clone_from_slice(&parts.1.to_be_bytes());
-		hash[16..24].clone_from_slice(&parts.2.to_be_bytes());
-		hash[24..32].clone_from_slice(&parts.3.to_be_bytes());
+		hash[0 .. 8].clone_from_slice(&parts.0.to_be_bytes());
+		hash[8 .. 16].clone_from_slice(&parts.1.to_be_bytes());
+		hash[16 .. 24].clone_from_slice(&parts.2.to_be_bytes());
+		hash[24 .. 32].clone_from_slice(&parts.3.to_be_bytes());
 		Ok(hash.into())
 	}
 
@@ -27,10 +27,10 @@ impl HashDef {
 	{
 		let hash = this.as_bytes();
 		let parts = (
-			u64::from_be_bytes((&hash[0..8]).try_into().unwrap()),
-			u64::from_be_bytes((&hash[8..16]).try_into().unwrap()),
-			u64::from_be_bytes((&hash[16..24]).try_into().unwrap()),
-			u64::from_be_bytes((&hash[24..32]).try_into().unwrap())
+			u64::from_be_bytes((&hash[0 .. 8]).try_into().unwrap()),
+			u64::from_be_bytes((&hash[8 .. 16]).try_into().unwrap()),
+			u64::from_be_bytes((&hash[16 .. 24]).try_into().unwrap()),
+			u64::from_be_bytes((&hash[24 .. 32]).try_into().unwrap())
 		);
 		parts.serialize(serializer)
 	}
@@ -140,7 +140,12 @@ impl DependencyInfoImpl {
 		}
 	}
 
-	fn add_dependency(&mut self, crate_name: String, version: Option<Version>, lib_name: String) {
+	fn add_dependency(
+		&mut self,
+		crate_name: String,
+		version: Option<Version>,
+		lib_name: String
+	) {
 		match self {
 			Self::V1(_, info) => {
 				info.dependencies

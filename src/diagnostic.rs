@@ -63,7 +63,7 @@ impl Diagnostic {
 		T: ToString,
 		L: ToString
 	{
-		let span = self.offset(span.start())..self.offset(span.end());
+		let span = self.offset(span.start()) .. self.offset(span.end());
 		self.reports.push(
 			Report::build(ReportKind::Warning, self.filename.clone(), span.start)
 				.with_message(msg)
@@ -84,7 +84,7 @@ impl Diagnostic {
 			report.add_label(
 				Label::new((
 					self.filename.clone(),
-					self.offset(span.start())..self.offset(span.end())
+					self.offset(span.start()) .. self.offset(span.end())
 				))
 				.with_message(err)
 			);

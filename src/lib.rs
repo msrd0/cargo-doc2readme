@@ -59,7 +59,8 @@ pub fn read_input(
 	// this uses a library target if exists, otherwise a binary target with the same name as the
 	// package, or otherwise the first binary target
 	let is_lib = |target: &&Target| target.is_lib();
-	let is_default_bin = |target: &&Target| target.is_bin() && target.name == pkg.name.as_str();
+	let is_default_bin =
+		|target: &&Target| target.is_bin() && target.name == pkg.name.as_str();
 	let target = if prefer_bin {
 		pkg.targets
 			.iter()

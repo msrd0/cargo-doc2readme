@@ -70,7 +70,10 @@ where
 					comment_indent,
 					comment
 				});
-			} else if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with('#') {
+			} else if trimmed.is_empty()
+				|| trimmed.starts_with("//")
+				|| trimmed.starts_with('#')
+			{
 				// line that might sit between doc comments
 				attrs.push(Attr::Verbatim {
 					line: self.lines.next().unwrap().unwrap()
@@ -90,7 +93,9 @@ where
 			} = attr
 			{
 				match &common_indent {
-					Some(common) if !comment_indent.starts_with(common) && !comment.is_empty() => {
+					Some(common)
+						if !comment_indent.starts_with(common) && !comment.is_empty() =>
+					{
 						common_indent = Some(
 							common
 								.chars()
@@ -162,7 +167,7 @@ where
 
 		let bytes = buf.len().min(self.buf.len());
 		let (head, tail) = self.buf.split_at(bytes);
-		buf[0..bytes].clone_from_slice(head);
+		buf[0 .. bytes].clone_from_slice(head);
 		self.buf = tail.to_owned();
 		Ok(bytes)
 	}

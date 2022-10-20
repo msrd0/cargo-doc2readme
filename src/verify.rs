@@ -61,9 +61,9 @@ pub fn check_up2date(
 
 	let search_key = b" [__cargo_doc2readme_dependencies_info]: ";
 	if let Some(search_idx) = memmem::find(&check_buf, search_key) {
-		let sub = &check_buf[search_idx + search_key.len()..];
+		let sub = &check_buf[search_idx + search_key.len() ..];
 		let end_idx = memchr2(b' ', b'\n', sub).unwrap_or(sub.len());
-		let depinfo_str = String::from_utf8(sub[..end_idx].to_vec()).unwrap();
+		let depinfo_str = String::from_utf8(sub[.. end_idx].to_vec()).unwrap();
 		let depinfo = match DependencyInfo::decode(depinfo_str) {
 			Ok(depinfo) => depinfo,
 			Err(e) => {
@@ -85,7 +85,8 @@ pub fn check_up2date(
 		// versions. dependencies that are missing in the readme don't matter.
 		for (lib_name, dep) in &input.dependencies {
 			debug!("Checking {} = \"{}\"", dep.crate_name, dep.req);
-			if !depinfo.check_dependency(&dep.crate_name, Some(&dep.req), lib_name, true) {
+			if !depinfo.check_dependency(&dep.crate_name, Some(&dep.req), lib_name, true)
+			{
 				return Ok(Check::IncompatibleVersion(dep.crate_name.clone()));
 			}
 		}

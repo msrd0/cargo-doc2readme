@@ -11,7 +11,9 @@ use std::{
 	path::Path,
 	process::{Command, Output}
 };
-use syn::{Attribute, Ident, Item, ItemUse, Lit, LitStr, Meta, UsePath, UseTree, Visibility};
+use syn::{
+	Attribute, Ident, Item, ItemUse, Lit, LitStr, Meta, UsePath, UseTree, Visibility
+};
 
 type ScopeScope = HashMap<String, VecDeque<(LinkType, String)>>;
 
@@ -44,7 +46,9 @@ pub enum LinkType {
 	PubUse
 }
 
-fn make_prelude<const N: usize>(prelude: [(&'static str, &'static str); N]) -> ScopeScope {
+fn make_prelude<const N: usize>(
+	prelude: [(&'static str, &'static str); N]
+) -> ScopeScope {
 	prelude
 		.into_iter()
 		.map(|(name, path)| {
@@ -152,7 +156,10 @@ impl CrateCode {
 		Self::read_from(BufReader::new(File::open(path)?))
 	}
 
-	pub fn read_expansion<P>(manifest_path: Option<P>, target: &Target) -> anyhow::Result<CrateCode>
+	pub fn read_expansion<P>(
+		manifest_path: Option<P>,
+		target: &Target
+	) -> anyhow::Result<CrateCode>
 	where
 		P: AsRef<Path>
 	{
@@ -368,7 +375,8 @@ fn resolve_dependencies(
 				);
 			}
 		} else {
-			diagnostics.warn(format!("Unable to find version of dependency {}", dep.name));
+			diagnostics
+				.warn(format!("Unable to find version of dependency {}", dep.name));
 		}
 	}
 
@@ -382,7 +390,11 @@ struct ScopeEditor<'a> {
 }
 
 impl<'a> ScopeEditor<'a> {
-	fn new(scope: &'a mut Scope, crate_name: &'a str, diagnostics: &'a mut Diagnostic) -> Self {
+	fn new(
+		scope: &'a mut Scope,
+		crate_name: &'a str,
+		diagnostics: &'a mut Diagnostic
+	) -> Self {
 		Self {
 			scope,
 			crate_name,
@@ -420,9 +432,11 @@ impl<'a> ScopeEditor<'a> {
 
 	fn insert_use_tree_impl(&mut self, vis: &Visibility, prefix: String, tree: &UseTree) {
 		match tree {
-			UseTree::Path(path) => {
-				self.insert_use_tree_impl(vis, format!("{prefix}{}::", path.ident), &path.tree)
-			},
+			UseTree::Path(path) => self.insert_use_tree_impl(
+				vis,
+				format!("{prefix}{}::", path.ident),
+				&path.tree
+			),
 			UseTree::Name(name) => {
 				// skip `pub use dependency;` style uses; they don't add any unknown
 				// elements to the scope
@@ -448,7 +462,13 @@ impl<'a> ScopeEditor<'a> {
 		};
 	}
 
-	fn insert_use_item(&mut self, vis: &Visibility, prefix: &str, rename: &Ident, ident: &Ident) {
+	fn insert_use_item(
+		&mut self,
+		vis: &Visibility,
+		prefix: &str,
+		rename: &Ident,
+		ident: &Ident
+	) {
 		if matches!(vis, Visibility::Public(_)) {
 			self.insert(rename, LinkType::PubUse);
 		}
@@ -460,7 +480,11 @@ impl<'a> ScopeEditor<'a> {
 	}
 }
 
-fn read_scope_from_file(pkg: &Package, file: &syn::File, diagnostics: &mut Diagnostic) -> Scope {
+fn read_scope_from_file(
+	pkg: &Package,
+	file: &syn::File,
+	diagnostics: &mut Diagnostic
+) -> Scope {
 	let crate_name = sanitize_crate_name(&pkg.name);
 	let mut scope = Scope::prelude(pkg.edition.clone());
 	let mut editor = ScopeEditor::new(&mut scope, &crate_name, diagnostics);
@@ -477,7 +501,9 @@ fn read_scope_from_file(pkg: &Package, file: &syn::File, diagnostics: &mut Diagn
 				);
 			},
 			Item::Fn(i) => editor.insert_fun(&i.sig.ident),
-			Item::Macro(i) if i.ident.is_some() => editor.insert_macro(i.ident.as_ref().unwrap()),
+			Item::Macro(i) if i.ident.is_some() => {
+				editor.insert_macro(i.ident.as_ref().unwrap())
+			},
 			Item::Macro2(i) => editor.insert_macro(&i.ident),
 			Item::Mod(i) if matches!(i.vis, Visibility::Public(_)) => {
 				editor.insert(&i.ident, LinkType::Mod)
@@ -489,7 +515,9 @@ fn read_scope_from_file(pkg: &Package, file: &syn::File, diagnostics: &mut Diagn
 			Item::TraitAlias(i) => editor.insert(&i.ident, LinkType::TraitAlias),
 			Item::Type(i) => editor.insert(&i.ident, LinkType::Type),
 			Item::Union(i) => editor.insert(&i.ident, LinkType::Union),
-			Item::Use(i) if !is_prelude_import(i) => editor.insert_use_tree(&i.vis, &i.tree),
+			Item::Use(i) if !is_prelude_import(i) => {
+				editor.insert_use_tree(&i.vis, &i.tree)
+			},
 			_ => {}
 		};
 	}
@@ -500,9 +528,12 @@ fn read_scope_from_file(pkg: &Package, file: &syn::File, diagnostics: &mut Diagn
 		while i < values.len() {
 			if values[i].0 == LinkType::Use {
 				let path = &values[i].1;
-				if (!path.starts_with("::") || path.starts_with(&format!("::{crate_name}::")))
+				if (!path.starts_with("::")
+					|| path.starts_with(&format!("::{crate_name}::")))
 					&& Some(path.split("::").collect::<Vec<_>>())
-						.map(|segments| segments.len() > 1 && scope.privmods.contains(segments[0]))
+						.map(|segments| {
+							segments.len() > 1 && scope.privmods.contains(segments[0])
+						})
 						.unwrap()
 				{
 					values.remove(i);
@@ -519,9 +550,11 @@ fn read_scope_from_file(pkg: &Package, file: &syn::File, diagnostics: &mut Diagn
 
 fn is_prelude_import(item_use: &ItemUse) -> bool {
 	match &item_use.tree {
-		UseTree::Path(UsePath { ident, tree, .. }) if ident == "std" => match tree.as_ref() {
-			UseTree::Path(UsePath { ident, .. }) => ident == "prelude",
-			_ => false
+		UseTree::Path(UsePath { ident, tree, .. }) if ident == "std" => {
+			match tree.as_ref() {
+				UseTree::Path(UsePath { ident, .. }) => ident == "prelude",
+				_ => false
+			}
 		},
 		_ => false
 	}

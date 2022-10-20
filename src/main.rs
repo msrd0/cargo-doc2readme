@@ -132,8 +132,10 @@ fn main() -> ExitCode {
 		_ => Args::parse()
 	};
 
-	simple_logger::init_with_level(args.verbose.then(|| Level::Debug).unwrap_or(Level::Info))
-		.expect("Failed to initialize logger");
+	simple_logger::init_with_level(
+		args.verbose.then(|| Level::Debug).unwrap_or(Level::Info)
+	)
+	.expect("Failed to initialize logger");
 
 	let (input_file, template, diagnostics) = read_input(
 		args.manifest_path,
@@ -176,7 +178,8 @@ fn main() -> ExitCode {
 		} else {
 			info!("Writing README to {}", out.display());
 			let mut file = File::create(&out).expect("Unable to create output file");
-			output::emit(input_file, &template, &mut file).expect("Unable to write output file");
+			output::emit(input_file, &template, &mut file)
+				.expect("Unable to write output file");
 		};
 		ExitCode::SUCCESS
 	}

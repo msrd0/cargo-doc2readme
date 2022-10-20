@@ -30,8 +30,8 @@ const RUSTDOC_CODEBLOCK_FLAGS: &[&str] = &[
 ];
 const RUST_PRIMITIVES: &[&str] = &[
 	// https://doc.rust-lang.org/stable/std/primitive/index.html#reexports
-	"bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "str", "u128", "u16",
-	"u32", "u64", "u8", "usize"
+	"bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "str",
+	"u128", "u16", "u32", "u64", "u8", "usize"
 ];
 
 impl Scope {
@@ -164,7 +164,7 @@ impl<'a> Readme<'a> {
 					Tag::Paragraph => Ok(()),
 					Tag::Heading(lvl, ..) => {
 						newline(out, &indent, &mut has_newline)?;
-						for _ in 0..=lvl as u8 {
+						for _ in 0 ..= lvl as u8 {
 							write!(out, "#")?;
 						}
 						write!(out, " ")
@@ -223,7 +223,8 @@ impl<'a> Readme<'a> {
 					Tag::Emphasis => write!(out, "*"),
 					Tag::Strong => write!(out, "**"),
 					Tag::Strikethrough => write!(out, "~~"),
-					Tag::Link(LinkType::Autolink, ..) | Tag::Link(LinkType::Email, ..) => {
+					Tag::Link(LinkType::Autolink, ..)
+					| Tag::Link(LinkType::Email, ..) => {
 						write!(out, "<")
 					},
 					Tag::Link(..) => write!(out, "["),
@@ -276,7 +277,9 @@ impl<'a> Readme<'a> {
 					Tag::Emphasis => write!(out, "*"),
 					Tag::Strong => write!(out, "**"),
 					Tag::Strikethrough => write!(out, "~~"),
-					Tag::Link(_, href, _) if href.starts_with('#') => write!(out, "]({href})"),
+					Tag::Link(_, href, _) if href.starts_with('#') => {
+						write!(out, "]({href})")
+					},
 					Tag::Link(ty, href, name) | Tag::Image(ty, href, name) => {
 						let link = format!("__link{link_idx}");
 						link_idx += 1;
@@ -343,7 +346,7 @@ impl<'a> Readme<'a> {
 		for link in self.links.keys().map(|l| l.to_owned()).collect::<Vec<_>>() {
 			let mut href = self.links[&link].to_owned();
 			if href.starts_with('`') && href.ends_with('`') {
-				href = href[1..href.len() - 1].to_owned();
+				href = href[1 .. href.len() - 1].to_owned();
 			}
 			href = self.input.scope.resolve(&self.input.crate_name, href);
 			if let Ok(path) = syn::parse_str::<Path>(&href) {
@@ -372,8 +375,10 @@ impl<'a> Readme<'a> {
 						.get(&self.input.crate_name)
 						.map(Dependency::as_tuple)
 						.unwrap_or((&self.input.crate_name, None));
-					self.links
-						.insert(link, links.build_link(crate_name, crate_ver, Some(&search)));
+					self.links.insert(
+						link,
+						links.build_link(crate_name, crate_ver, Some(&search))
+					);
 				} else if path.segments.len() > 1 {
 					let (crate_name, crate_ver) = self
 						.input
@@ -381,8 +386,10 @@ impl<'a> Readme<'a> {
 						.get(&first)
 						.map(Dependency::as_tuple)
 						.unwrap_or((&first, None));
-					self.links
-						.insert(link, links.build_link(crate_name, crate_ver, Some(&search)));
+					self.links.insert(
+						link,
+						links.build_link(crate_name, crate_ver, Some(&search))
+					);
 				} else if RUST_PRIMITIVES.contains(&first.as_str()) {
 					self.links
 						.insert(link, links.primitive_link(first.as_str()));
@@ -429,7 +436,11 @@ struct TemplateContext<'a> {
 	links: String
 }
 
-pub fn emit(input: InputFile, template: &str, out_file: &mut dyn io::Write) -> anyhow::Result<()> {
+pub fn emit(
+	input: InputFile,
+	template: &str,
+	out_file: &mut dyn io::Write
+) -> anyhow::Result<()> {
 	let mut readme = Readme::new(template, &input);
 
 	// unwrap: This will never fail since we're only writing to a String.
