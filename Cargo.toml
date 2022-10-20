@@ -25,7 +25,7 @@ base64 = "0.13"
 blake3 = "1.3"
 # waiting for https://github.com/oli-obk/cargo_metadata/pull/185 to be part of a release
 cargo_metadata = { git = "https://github.com/oli-obk/cargo_metadata", rev = "2d2998c859f45f544ea847f401a5f15dff432ca9" }
-clap = { version = "3.2", features = ["derive"] }
+clap = { version = "4.0", features = ["derive"] }
 either = "1.6"
 itertools = "0.10"
 log = "0.4"
