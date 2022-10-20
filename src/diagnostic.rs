@@ -24,13 +24,13 @@ impl Diagnostic {
 		self.fail
 	}
 
-	pub fn print(self) -> io::Result<()> {
+	pub fn print(&self) -> io::Result<()> {
 		self.print_to(io::stderr())
 	}
 
-	pub fn print_to<W: io::Write>(self, mut w: W) -> io::Result<()> {
-		let mut cache = (self.filename, self.code.into());
-		for r in self.reports {
+	pub fn print_to<W: io::Write>(&self, mut w: W) -> io::Result<()> {
+		let mut cache = (self.filename.clone(), self.code.clone().into());
+		for r in &self.reports {
 			r.write(&mut cache, &mut w)?;
 		}
 		Ok(())
