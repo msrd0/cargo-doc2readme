@@ -3,11 +3,14 @@
 //! AT ALL.**
 
 use cargo_metadata::{MetadataCommand, Target};
-use log::{debug, info, warn};
+use log::{debug, info};
 use std::{borrow::Cow, env, fs::File, io::Read as _, path::PathBuf};
 
 #[doc(hidden)]
 pub mod depinfo;
+
+#[doc(hidden)]
+pub mod diagnostic;
 
 #[doc(hidden)]
 pub mod input;
@@ -21,6 +24,7 @@ pub mod preproc;
 #[doc(hidden)]
 pub mod verify;
 
+use diagnostic::Diagnostic;
 use input::{CrateCode, InputFile};
 
 #[doc(hidden)]
@@ -33,7 +37,7 @@ pub fn read_input(
 	prefer_bin: bool,
 	expand_macros: bool,
 	template: PathBuf
-) -> (InputFile, Cow<'static, str>) {
+) -> (InputFile, Cow<'static, str>, Diagnostic) {
 	// get the cargo manifest path
 	let manifest_path = match manifest_path {
 		Some(path) if path.is_relative() => Some(env::current_dir().unwrap().join(path)),
@@ -73,12 +77,18 @@ pub fn read_input(
 
 	// read crate code
 	let file = target.src_path.as_std_path();
+	let filename = file
+		.file_name()
+		.expect("File has no filename")
+		.to_string_lossy()
+		.into_owned();
 	let code = if expand_macros {
 		CrateCode::read_expansion(manifest_path.as_ref(), target)
 			.expect("Failed to read crate code")
 	} else {
 		CrateCode::read_from_disk(file).expect("Failed to read crate code")
 	};
+	let mut diagnostics = Diagnostic::new(filename, code.0.clone());
 
 	// resolve the template
 	let template: Cow<'static, str> = if template.exists() {
@@ -94,11 +104,8 @@ pub fn read_input(
 
 	// process the target
 	info!("Reading {}", file.display());
-	let input_file = input::read_code(&metadata, pkg, code).expect("Unable to read file");
+	let input_file = input::read_code(&metadata, pkg, code, &mut diagnostics);
 	debug!("Processing {input_file:#?}");
-	if input_file.scope.has_glob_use {
-		warn!("Your code contains glob use statements (e.g. `use std::io::prelude::*;`). Those can lead to incomplete link generation.");
-	}
 
-	(input_file, template)
+	(input_file, template, diagnostics)
 }

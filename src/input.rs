@@ -1,7 +1,7 @@
-use crate::preproc::Preprocessor;
+use crate::{diagnostic::Diagnostic, preproc::Preprocessor};
 use anyhow::{bail, Context};
 use cargo_metadata::{Edition, Metadata, Package, Target};
-use log::{debug, info, warn};
+use log::{debug, info};
 use semver::{Comparator, Op, Version, VersionReq};
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
@@ -20,9 +20,7 @@ pub struct Scope {
 	// use statements and declared items. maps name to path.
 	pub scope: ScopeScope,
 	// private modules so that `pub use`'d items are considered inlined.
-	pub privmods: HashSet<String>,
-	// the scope included a wildcard use statement.
-	pub has_glob_use: bool
+	pub privmods: HashSet<String>
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -114,8 +112,7 @@ impl Scope {
 				("ToString", "string"),
 				("Vec", "vec")
 			]),
-			privmods: HashSet::new(),
-			has_glob_use: false
+			privmods: HashSet::new()
 		};
 
 		if edition >= Edition::E2021 {
@@ -134,7 +131,7 @@ impl Scope {
 }
 
 #[derive(Debug)]
-pub struct CrateCode(String);
+pub struct CrateCode(pub String);
 
 impl CrateCode {
 	fn read_from<R>(read: R) -> io::Result<Self>
@@ -248,20 +245,38 @@ impl Debug for Dependency {
 	}
 }
 
-pub fn read_code(metadata: &Metadata, pkg: &Package, code: CrateCode) -> anyhow::Result<InputFile> {
+pub fn read_code(
+	metadata: &Metadata,
+	pkg: &Package,
+	code: CrateCode,
+	diagnostics: &mut Diagnostic
+) -> InputFile {
 	let crate_name = pkg.name.clone();
 	let repository = pkg.repository.clone();
 	let license = pkg.license.clone();
 	let rust_version = pkg.rust_version.clone();
 
 	debug!("Reading code \n{}", code.0);
-	let file = syn::parse_file(code.0.as_str())?;
+	let file = match syn::parse_file(code.0.as_str()) {
+		Ok(file) => file,
+		Err(err) => {
+			diagnostics.syntax_error(err);
+			syn::parse_file("").unwrap()
+		}
+	};
 
-	let rustdoc = read_rustdoc_from_file(&file)?;
-	let dependencies = resolve_dependencies(metadata, pkg)?;
-	let scope = read_scope_from_file(pkg, &file)?;
+	let rustdoc = match read_rustdoc_from_file(&file) {
+		Ok(rustdoc) => rustdoc,
+		Err(err) => {
+			diagnostics.syntax_error(err);
+			String::new()
+		}
+	};
 
-	Ok(InputFile {
+	let dependencies = resolve_dependencies(metadata, pkg, diagnostics);
+	let scope = read_scope_from_file(pkg, &file, diagnostics);
+
+	InputFile {
 		crate_name,
 		repository,
 		license,
@@ -269,10 +284,10 @@ pub fn read_code(metadata: &Metadata, pkg: &Package, code: CrateCode) -> anyhow:
 		rustdoc,
 		dependencies,
 		scope
-	})
+	}
 }
 
-fn read_rustdoc_from_file(file: &syn::File) -> anyhow::Result<String> {
+fn read_rustdoc_from_file(file: &syn::File) -> syn::Result<String> {
 	let mut doc = String::new();
 	for attr in &file.attrs {
 		if attr.path.is_ident("doc") {
@@ -304,8 +319,9 @@ fn sanitize_crate_name<T: AsRef<str>>(name: T) -> String {
 
 fn resolve_dependencies(
 	metadata: &Metadata,
-	pkg: &Package
-) -> anyhow::Result<HashMap<String, Dependency>> {
+	pkg: &Package,
+	diagnostics: &mut Diagnostic
+) -> HashMap<String, Dependency> {
 	let mut deps = HashMap::new();
 
 	// we currently insert our own crate as a dependency to allow doc links referencing ourself.
@@ -352,21 +368,26 @@ fn resolve_dependencies(
 				);
 			}
 		} else {
-			warn!("Unable to find version of dependency {}", dep.name);
+			diagnostics.warn(format!("Unable to find version of dependency {}", dep.name));
 		}
 	}
 
-	Ok(deps)
+	deps
 }
 
 struct ScopeEditor<'a> {
 	scope: &'a mut Scope,
-	crate_name: &'a str
+	crate_name: &'a str,
+	diagnostics: &'a mut Diagnostic
 }
 
 impl<'a> ScopeEditor<'a> {
-	fn new(scope: &'a mut Scope, crate_name: &'a str) -> Self {
-		Self { scope, crate_name }
+	fn new(scope: &'a mut Scope, crate_name: &'a str, diagnostics: &'a mut Diagnostic) -> Self {
+		Self {
+			scope,
+			crate_name,
+			diagnostics
+		}
 	}
 
 	fn add_privmod(&mut self, ident: &Ident) {
@@ -412,8 +433,12 @@ impl<'a> ScopeEditor<'a> {
 			UseTree::Rename(name) => {
 				self.insert_use_item(vis, &prefix, &name.rename, &name.ident);
 			},
-			UseTree::Glob(_) => {
-				self.scope.has_glob_use = true;
+			UseTree::Glob(glob) => {
+				self.diagnostics.warn_with_label(
+					"Glob use statements can lead to incomplete link generation.",
+					glob.star_token.spans[0],
+					"All items imported through this glob use will not be used for link generation"
+				);
 			},
 			UseTree::Group(group) => {
 				for tree in &group.items {
@@ -435,10 +460,10 @@ impl<'a> ScopeEditor<'a> {
 	}
 }
 
-fn read_scope_from_file(pkg: &Package, file: &syn::File) -> anyhow::Result<Scope> {
+fn read_scope_from_file(pkg: &Package, file: &syn::File, diagnostics: &mut Diagnostic) -> Scope {
 	let crate_name = sanitize_crate_name(&pkg.name);
 	let mut scope = Scope::prelude(pkg.edition.clone());
-	let mut editor = ScopeEditor::new(&mut scope, &crate_name);
+	let mut editor = ScopeEditor::new(&mut scope, &crate_name, diagnostics);
 
 	for i in &file.items {
 		match i {
@@ -489,7 +514,7 @@ fn read_scope_from_file(pkg: &Package, file: &syn::File) -> anyhow::Result<Scope
 		}
 	}
 
-	Ok(scope)
+	scope
 }
 
 fn is_prelude_import(item_use: &ItemUse) -> bool {
