@@ -19,17 +19,18 @@ path = "tests/tests.rs"
 harness = false
 
 [dependencies]
-anyhow = "1.0.64"
+anyhow = "1.0.65"
 ariadne = "0.1.5"
 base64 = "0.13"
 blake3 = "1.3"
 # waiting for https://github.com/oli-obk/cargo_metadata/pull/185 to be part of a release
-cargo_metadata = { git = "https://github.com/oli-obk/cargo_metadata", rev = "c0e2194cfd141d770bb5844ad4f40aad8fbbd92b" }
+cargo_metadata = { git = "https://github.com/oli-obk/cargo_metadata", rev = "2d2998c859f45f544ea847f401a5f15dff432ca9" }
 clap = { version = "3.2", features = ["derive"] }
 either = "1.6"
 itertools = "0.10"
 log = "0.4"
 memchr = "2.5"
+minijinja = { version = "0.23", features = ["builtins", "debug", "key_interning", "urlencode"], default-features = false }
 monostate = "0.1"
 proc-macro2 = { version = "1.0.42", features = ["span-locations"], default-features = false }
 pulldown-cmark = { version = "0.9", default-features = false }
@@ -37,8 +38,7 @@ semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_cbor = "0.11.2"
 simple_logger = { version = "2.3", features = ["colors", "stderr"], default-features = false }
-syn = { version = "1.0.98", features = ["full", "parsing"], default-features = false }
-tera = { version = "1.17", features = ["urlencode"], default-features = false }
+syn = { version = "1.0", features = ["full", "parsing"], default-features = false }
 url = "2.2"
 
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]

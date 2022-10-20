@@ -164,9 +164,9 @@ impl CrateCode {
 		if let Some(manifest_path) = manifest_path {
 			cmd.arg("--manifest-path").arg(manifest_path.as_ref());
 		}
-		if target.kind.iter().any(|kind| kind == "lib") {
+		if target.is_lib() {
 			cmd.arg("--lib");
-		} else if target.kind.iter().any(|kind| kind == "bin") {
+		} else if target.is_bin() {
 			cmd.arg("--bin").arg(&target.name);
 		}
 		cmd.arg("--").arg("-Zunpretty=expanded");
