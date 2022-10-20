@@ -46,6 +46,7 @@ pulldown-cmark = { version = "0.9", default-features = false, features = ["simd"
 
 [dev-dependencies]
 hex = "0.4.3"
+lazy-regex = "2.3"
 libtest = { version = "0.4", package = "libtest-mimic" }
 pretty_assertions = "1.3"
 

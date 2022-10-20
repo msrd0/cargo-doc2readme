@@ -253,7 +253,7 @@ pub fn read_code(
 	pkg: &Package,
 	code: CrateCode,
 	diagnostics: &mut Diagnostic
-) -> anyhow::Result<InputFile> {
+) -> InputFile {
 	let crate_name = pkg.name.clone();
 	let repository = pkg.repository.clone();
 	let license = pkg.license.clone();
@@ -264,15 +264,22 @@ pub fn read_code(
 		Ok(file) => file,
 		Err(err) => {
 			diagnostics.syntax_error(err);
-			bail!("syntax error")
+			syn::parse_file("").unwrap()
 		}
 	};
 
-	let rustdoc = read_rustdoc_from_file(&file)?;
-	let dependencies = resolve_dependencies(metadata, pkg, diagnostics);
-	let scope = read_scope_from_file(pkg, &file)?;
+	let rustdoc = match read_rustdoc_from_file(&file) {
+		Ok(rustdoc) => rustdoc,
+		Err(err) => {
+			diagnostics.syntax_error(err);
+			String::new()
+		}
+	};
 
-	Ok(InputFile {
+	let dependencies = resolve_dependencies(metadata, pkg, diagnostics);
+	let scope = read_scope_from_file(pkg, &file);
+
+	InputFile {
 		crate_name,
 		repository,
 		license,
@@ -280,10 +287,10 @@ pub fn read_code(
 		rustdoc,
 		dependencies,
 		scope
-	})
+	}
 }
 
-fn read_rustdoc_from_file(file: &syn::File) -> anyhow::Result<String> {
+fn read_rustdoc_from_file(file: &syn::File) -> syn::Result<String> {
 	let mut doc = String::new();
 	for attr in &file.attrs {
 		if attr.path.is_ident("doc") {
@@ -447,7 +454,7 @@ impl<'a> ScopeEditor<'a> {
 	}
 }
 
-fn read_scope_from_file(pkg: &Package, file: &syn::File) -> anyhow::Result<Scope> {
+fn read_scope_from_file(pkg: &Package, file: &syn::File) -> Scope {
 	let crate_name = sanitize_crate_name(&pkg.name);
 	let mut scope = Scope::prelude(pkg.edition.clone());
 	let mut editor = ScopeEditor::new(&mut scope, &crate_name);
@@ -501,7 +508,7 @@ fn read_scope_from_file(pkg: &Package, file: &syn::File) -> anyhow::Result<Scope
 		}
 	}
 
-	Ok(scope)
+	scope
 }
 
 fn is_prelude_import(item_use: &ItemUse) -> bool {

@@ -25,9 +25,13 @@ impl Diagnostic {
 	}
 
 	pub fn print(self) -> io::Result<()> {
+		self.print_to(io::stderr())
+	}
+
+	pub fn print_to<W: io::Write>(self, mut w: W) -> io::Result<()> {
 		let mut cache = (self.filename, self.code.into());
 		for r in self.reports {
-			r.print(&mut cache)?;
+			r.write(&mut cache, &mut w)?;
 		}
 		Ok(())
 	}
@@ -86,5 +90,6 @@ impl Diagnostic {
 			);
 		}
 		self.reports.push(report.finish());
+		self.fail = true;
 	}
 }

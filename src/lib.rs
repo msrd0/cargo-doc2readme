@@ -110,8 +110,7 @@ pub fn read_input(
 
 	// process the target
 	info!("Reading {}", file.display());
-	let input_file =
-		input::read_code(&metadata, pkg, code, &mut diagnostics).expect("Unable to read file");
+	let input_file = input::read_code(&metadata, pkg, code, &mut diagnostics);
 	debug!("Processing {input_file:#?}");
 	if input_file.scope.has_glob_use {
 		warn!("Your code contains glob use statements (e.g. `use std::io::prelude::*;`). Those can lead to incomplete link generation.");
