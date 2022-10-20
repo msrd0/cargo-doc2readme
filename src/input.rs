@@ -20,9 +20,7 @@ pub struct Scope {
 	// use statements and declared items. maps name to path.
 	pub scope: ScopeScope,
 	// private modules so that `pub use`'d items are considered inlined.
-	pub privmods: HashSet<String>,
-	// the scope included a wildcard use statement.
-	pub has_glob_use: bool
+	pub privmods: HashSet<String>
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -114,8 +112,7 @@ impl Scope {
 				("ToString", "string"),
 				("Vec", "vec")
 			]),
-			privmods: HashSet::new(),
-			has_glob_use: false
+			privmods: HashSet::new()
 		};
 
 		if edition >= Edition::E2021 {
@@ -277,7 +274,7 @@ pub fn read_code(
 	};
 
 	let dependencies = resolve_dependencies(metadata, pkg, diagnostics);
-	let scope = read_scope_from_file(pkg, &file);
+	let scope = read_scope_from_file(pkg, &file, diagnostics);
 
 	InputFile {
 		crate_name,
@@ -380,12 +377,17 @@ fn resolve_dependencies(
 
 struct ScopeEditor<'a> {
 	scope: &'a mut Scope,
-	crate_name: &'a str
+	crate_name: &'a str,
+	diagnostics: &'a mut Diagnostic
 }
 
 impl<'a> ScopeEditor<'a> {
-	fn new(scope: &'a mut Scope, crate_name: &'a str) -> Self {
-		Self { scope, crate_name }
+	fn new(scope: &'a mut Scope, crate_name: &'a str, diagnostics: &'a mut Diagnostic) -> Self {
+		Self {
+			scope,
+			crate_name,
+			diagnostics
+		}
 	}
 
 	fn add_privmod(&mut self, ident: &Ident) {
@@ -431,8 +433,12 @@ impl<'a> ScopeEditor<'a> {
 			UseTree::Rename(name) => {
 				self.insert_use_item(vis, &prefix, &name.rename, &name.ident);
 			},
-			UseTree::Glob(_) => {
-				self.scope.has_glob_use = true;
+			UseTree::Glob(glob) => {
+				self.diagnostics.warn_with_label(
+					"Glob use statements can lead to incomplete link generation.",
+					glob.star_token.spans[0],
+					"All items imported through this glob use will not be used for link generation"
+				);
 			},
 			UseTree::Group(group) => {
 				for tree in &group.items {
@@ -454,10 +460,10 @@ impl<'a> ScopeEditor<'a> {
 	}
 }
 
-fn read_scope_from_file(pkg: &Package, file: &syn::File) -> Scope {
+fn read_scope_from_file(pkg: &Package, file: &syn::File, diagnostics: &mut Diagnostic) -> Scope {
 	let crate_name = sanitize_crate_name(&pkg.name);
 	let mut scope = Scope::prelude(pkg.edition.clone());
-	let mut editor = ScopeEditor::new(&mut scope, &crate_name);
+	let mut editor = ScopeEditor::new(&mut scope, &crate_name, diagnostics);
 
 	for i in &file.items {
 		match i {
