@@ -3,6 +3,7 @@ use anyhow::{bail, Context};
 use cargo_metadata::{Edition, Metadata, Package, Target};
 use log::{debug, info};
 use semver::{Comparator, Op, Version, VersionReq};
+use serde::Serialize;
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
 	fmt::{self, Debug, Formatter},
@@ -199,10 +200,19 @@ impl CrateCode {
 	}
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TargetType {
+	Bin,
+	Lib
+}
+
 #[derive(Debug)]
 pub struct InputFile {
 	/// The name of the crate.
 	pub crate_name: String,
+	/// The target type.
+	pub target_type: TargetType,
 	/// The repository url (if specified).
 	pub repository: Option<String>,
 	/// The license field (if specified).
@@ -257,6 +267,7 @@ pub fn read_code(
 	metadata: &Metadata,
 	pkg: &Package,
 	code: CrateCode,
+	target_type: TargetType,
 	diagnostics: &mut Diagnostic
 ) -> InputFile {
 	let crate_name = pkg.name.clone();
@@ -286,6 +297,7 @@ pub fn read_code(
 
 	InputFile {
 		crate_name,
+		target_type,
 		repository,
 		license,
 		rust_version,

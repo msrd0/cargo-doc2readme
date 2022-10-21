@@ -1,6 +1,6 @@
 use crate::{
 	depinfo::DependencyInfo,
-	input::{Dependency, InputFile, Scope}
+	input::{Dependency, InputFile, Scope, TargetType}
 };
 use either::Either;
 use itertools::Itertools;
@@ -425,6 +425,7 @@ impl<'a> Readme<'a> {
 struct TemplateContext<'a> {
 	#[serde(rename = "crate")]
 	krate: &'a str,
+	target: TargetType,
 
 	repository: Option<&'a str>,
 	repository_host: Option<String>,
@@ -452,6 +453,7 @@ pub fn emit(
 	let repository = input.repository.as_deref();
 	let ctx = TemplateContext {
 		krate: &input.crate_name,
+		target: input.target_type,
 		repository,
 		repository_host: repository.and_then(|repo| {
 			let url = Url::parse(repo).ok();

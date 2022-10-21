@@ -24,6 +24,7 @@ pub mod preproc;
 #[doc(hidden)]
 pub mod verify;
 
+use crate::input::TargetType;
 use diagnostic::Diagnostic;
 use input::{CrateCode, InputFile};
 
@@ -62,19 +63,36 @@ pub fn read_input(
 	let is_lib = |target: &&Target| target.is_lib();
 	let is_default_bin =
 		|target: &&Target| target.is_bin() && target.name == pkg.name.as_str();
-	let target = if prefer_bin {
+	let target_and_type = if prefer_bin {
 		pkg.targets
 			.iter()
 			.find(is_default_bin)
-			.or_else(|| pkg.targets.iter().find(is_lib))
+			.map(|target| (target, TargetType::Bin))
+			.or_else(|| {
+				pkg.targets
+					.iter()
+					.find(is_lib)
+					.map(|target| (target, TargetType::Lib))
+			})
 	} else {
 		pkg.targets
 			.iter()
 			.find(is_lib)
-			.or_else(|| pkg.targets.iter().find(is_default_bin))
+			.map(|target| (target, TargetType::Lib))
+			.or_else(|| {
+				pkg.targets
+					.iter()
+					.find(is_default_bin)
+					.map(|target| (target, TargetType::Bin))
+			})
 	};
-	let target = target
-		.or_else(|| pkg.targets.iter().find(|target| target.is_bin()))
+	let (target, target_type) = target_and_type
+		.or_else(|| {
+			pkg.targets
+				.iter()
+				.find(|target| target.is_bin())
+				.map(|target| (target, TargetType::Bin))
+		})
 		.expect("Failed to find a library or binary target");
 
 	// read crate code
@@ -106,7 +124,8 @@ pub fn read_input(
 
 	// process the target
 	info!("Reading {}", file.display());
-	let input_file = input::read_code(&metadata, pkg, code, &mut diagnostics);
+	let input_file =
+		input::read_code(&metadata, pkg, code, target_type, &mut diagnostics);
 	debug!("Processing {input_file:#?}");
 
 	(input_file, template, diagnostics)
