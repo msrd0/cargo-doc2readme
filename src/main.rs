@@ -118,7 +118,6 @@ struct CmdLine {
 macro_rules! exit_on_err {
 	($diagnostics:ident) => {
 		if $diagnostics.is_fail() {
-			$diagnostics.print().expect("Failed to print error message");
 			return ExitCode::FAILURE;
 		}
 	};
@@ -143,6 +142,7 @@ fn main() -> ExitCode {
 		args.expand_macros,
 		args.template
 	);
+	diagnostics.print().unwrap();
 	exit_on_err!(diagnostics);
 
 	let out_is_stdout = args.out.to_str() == Some("-");
