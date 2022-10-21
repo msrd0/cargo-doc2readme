@@ -2,7 +2,7 @@
 //! ADHERE TO SEMVER. DON'T EVEN USE AT YOUR OWN RISK. DON'T USE IT
 //! AT ALL.**
 
-use cargo_metadata::{MetadataCommand, Target};
+use cargo_metadata::{CargoOpt, MetadataCommand, Target};
 use log::{debug, info};
 use std::{borrow::Cow, env, fs::File, io::Read as _, path::PathBuf};
 
@@ -47,6 +47,7 @@ pub fn read_input(
 
 	// parse the cargo metadata
 	let mut cmd = MetadataCommand::new();
+	cmd.features(CargoOpt::AllFeatures);
 	if let Some(path) = &manifest_path {
 		cmd.manifest_path(path);
 	}
