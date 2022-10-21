@@ -12,7 +12,8 @@ use std::{
 	process::{Command, Output}
 };
 use syn::{
-	Attribute, Ident, Item, ItemUse, Lit, LitStr, Meta, UsePath, UseTree, Visibility
+	Attribute, Ident, Item, ItemMacro, ItemUse, Lit, LitStr, Meta, UsePath, UseTree,
+	Visibility
 };
 
 type ScopeScope = HashMap<String, VecDeque<(LinkType, String)>>;
@@ -480,6 +481,16 @@ impl<'a> ScopeEditor<'a> {
 	}
 }
 
+fn is_public(vis: &Visibility) -> bool {
+	matches!(vis, Visibility::Public(_))
+}
+
+fn is_exported(mac: &ItemMacro) -> bool {
+	mac.attrs
+		.iter()
+		.any(|attr| attr.path.is_ident("macro_export"))
+}
+
 fn read_scope_from_file(
 	pkg: &Package,
 	file: &syn::File,
@@ -491,30 +502,42 @@ fn read_scope_from_file(
 
 	for i in &file.items {
 		match i {
-			Item::Const(i) => editor.insert(&i.ident, LinkType::Const),
-			Item::Enum(i) => editor.insert(&i.ident, LinkType::Enum),
-			Item::ExternCrate(i) if i.ident != "self" && i.rename.is_some() => {
+			Item::Const(i) if is_public(&i.vis) => {
+				editor.insert(&i.ident, LinkType::Const)
+			},
+			Item::Enum(i) if is_public(&i.vis) => editor.insert(&i.ident, LinkType::Enum),
+			Item::ExternCrate(i)
+				if is_public(&i.vis) && i.ident != "self" && i.rename.is_some() =>
+			{
 				editor.scope.insert(
 					i.rename.as_ref().unwrap().1.to_string(),
 					LinkType::ExternCrate,
 					format!("::{}", i.ident)
 				);
 			},
-			Item::Fn(i) => editor.insert_fun(&i.sig.ident),
-			Item::Macro(i) if i.ident.is_some() => {
+			Item::Fn(i) if is_public(&i.vis) => editor.insert_fun(&i.sig.ident),
+			Item::Macro(i) if is_exported(i) && i.ident.is_some() => {
 				editor.insert_macro(i.ident.as_ref().unwrap())
 			},
-			Item::Macro2(i) => editor.insert_macro(&i.ident),
-			Item::Mod(i) if matches!(i.vis, Visibility::Public(_)) => {
-				editor.insert(&i.ident, LinkType::Mod)
-			},
+			Item::Macro2(i) if is_public(&i.vis) => editor.insert_macro(&i.ident),
+			Item::Mod(i) if is_public(&i.vis) => editor.insert(&i.ident, LinkType::Mod),
 			Item::Mod(i) => editor.add_privmod(&i.ident),
-			Item::Static(i) => editor.insert(&i.ident, LinkType::Static),
-			Item::Struct(i) => editor.insert(&i.ident, LinkType::Struct),
-			Item::Trait(i) => editor.insert(&i.ident, LinkType::Trait),
-			Item::TraitAlias(i) => editor.insert(&i.ident, LinkType::TraitAlias),
-			Item::Type(i) => editor.insert(&i.ident, LinkType::Type),
-			Item::Union(i) => editor.insert(&i.ident, LinkType::Union),
+			Item::Static(i) if is_public(&i.vis) => {
+				editor.insert(&i.ident, LinkType::Static)
+			},
+			Item::Struct(i) if is_public(&i.vis) => {
+				editor.insert(&i.ident, LinkType::Struct)
+			},
+			Item::Trait(i) if is_public(&i.vis) => {
+				editor.insert(&i.ident, LinkType::Trait)
+			},
+			Item::TraitAlias(i) if is_public(&i.vis) => {
+				editor.insert(&i.ident, LinkType::TraitAlias)
+			},
+			Item::Type(i) if is_public(&i.vis) => editor.insert(&i.ident, LinkType::Type),
+			Item::Union(i) if is_public(&i.vis) => {
+				editor.insert(&i.ident, LinkType::Union)
+			},
 			Item::Use(i) if !is_prelude_import(i) => {
 				editor.insert_use_tree(&i.vis, &i.tree)
 			},
