@@ -27,23 +27,51 @@ const RUSTDOC_CODEBLOCK_FLAGS: &[&str] = &[
 	"should_panic"
 ];
 
+pub struct ResolvedLink {
+	pub path: String,
+	pub link_type: Option<crate::input::LinkType>
+}
+
 impl Scope {
-	fn resolve(&self, crate_name: &str, path: String) -> String {
-		if path.starts_with("::") {
-			return path;
-		}
-		let mut segments = path.split("::").collect::<Vec<_>>();
-		if segments[0] == "crate" {
-			segments[0] = crate_name;
-		}
-		if self.scope.contains_key(segments[0]) {
-			let paths = &self.scope[segments[0]];
-			if let Some((_, path)) = paths.front() {
-				segments[0] = path;
-				return self.resolve(crate_name, segments.join("::"));
+	pub fn resolve(&self, crate_name: &str, path: String) -> ResolvedLink {
+		self.resolve_impl(crate_name, None, path)
+	}
+
+	pub fn resolve_impl(
+		&self,
+		crate_name: &str,
+		link_type: Option<crate::input::LinkType>,
+		path: String
+	) -> ResolvedLink {
+		if !path.starts_with("::") {
+			// split path into segments
+			let mut segments = path.split("::").collect::<Vec<_>>();
+			if segments[0] == "crate" {
+				segments[0] = crate_name;
+			}
+
+			// check if we can resolve anything
+			if self.scope.contains_key(segments[0]) {
+				let paths = &self.scope[segments[0]];
+				if let Some((path_link_type, path)) = paths.front() {
+					segments[0] = path;
+					let path = segments.join("::");
+					if path.starts_with("::") {
+						return ResolvedLink {
+							path,
+							link_type: if segments.len() == 1 {
+								Some(*path_link_type)
+							} else {
+								link_type
+							}
+						};
+					}
+					return self.resolve(crate_name, segments.join("::"));
+				}
 			}
 		}
-		path
+
+		ResolvedLink { path, link_type }
 	}
 }
 
@@ -295,10 +323,11 @@ impl<'a> Readme<'a> {
 			if href.starts_with('`') && href.ends_with('`') {
 				href = href[1 .. href.len() - 1].to_owned();
 			}
-			href = self.input.scope.resolve(&self.input.crate_name, href);
-			if let Ok(path) = syn::parse_str::<Path>(&href) {
+			let href = self.input.scope.resolve(&self.input.crate_name, href);
+
+			if let Ok(path) = syn::parse_str::<Path>(&href.path) {
 				self.links
-					.insert(link, links.build_link(&path, &self.input));
+					.insert(link, links.build_link(&path, href.link_type, self.input));
 			}
 		}
 

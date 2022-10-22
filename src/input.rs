@@ -1,6 +1,7 @@
 use crate::{diagnostic::Diagnostic, preproc::Preprocessor};
 use anyhow::{bail, Context};
 use cargo_metadata::{Edition, Metadata, Package, Target};
+use either::Either;
 use log::{debug, info};
 use semver::{Comparator, Op, Version, VersionReq};
 use serde::Serialize;
@@ -27,7 +28,7 @@ pub struct Scope {
 	pub privmods: HashSet<String>
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LinkType {
 	Const,
 	Enum,
@@ -45,21 +46,30 @@ pub enum LinkType {
 	/// `use` statement that links to a path.
 	Use,
 	/// `pub use` statement that links to the name pub used as.
-	PubUse
+	PubUse,
+
+	/// Primitive from the standard library
+	Primitive
 }
 
 fn make_prelude<const N: usize>(
-	prelude: [(&'static str, &'static str); N]
+	prelude: [(&'static str, &'static str, LinkType); N]
 ) -> ScopeScope {
 	prelude
 		.into_iter()
-		.map(|(name, path)| {
-			(
-				name.into(),
-				[(LinkType::Use, format!("::std::{path}::{name}"))]
-					.into_iter()
-					.collect()
-			)
+		.flat_map(|(name, path, link_type)| {
+			let path = match path {
+				"" => format!("::std::{name}"),
+				_ => format!("::std::{path}::{name}")
+			};
+			let items: VecDeque<_> = [(link_type, path)].into_iter().collect();
+			match link_type {
+				LinkType::Macro => Either::Left(
+					[(name.into(), items.clone()), (format!("{name}!"), items)]
+						.into_iter()
+				),
+				_ => Either::Right([(name.into(), items)].into_iter())
+			}
 		})
 		.collect()
 }
@@ -79,44 +89,99 @@ impl Scope {
 	/// Create a new scope from the Rust prelude.
 	pub fn prelude(edition: Edition) -> Self {
 		let mut scope = Scope {
-			// https://doc.rust-lang.org/stable/std/prelude/index.html#prelude-contents
 			scope: make_prelude([
-				("Copy", "marker"),
-				("Send", "marker"),
-				("Sized", "marker"),
-				("Sync", "marker"),
-				("Unpin", "marker"),
-				("Drop", "ops"),
-				("Fn", "ops"),
-				("FnMut", "ops"),
-				("FnOnce", "ops"),
-				("drop", "mem"),
-				("Box", "boxed"),
-				("ToOwned", "borrow"),
-				("Clone", "clone"),
-				("PartialEq", "cmp"),
-				("PartialOrd", "cmp"),
-				("Eq", "cmp"),
-				("Ord", "cmp"),
-				("AsRef", "convert"),
-				("AsMut", "convert"),
-				("Into", "convert"),
-				("From", "convert"),
-				("Default", "default"),
-				("Iterator", "iter"),
-				("Extend", "iter"),
-				("IntoIterator", "iter"),
-				("DoubleEndedIterator", "iter"),
-				("ExactSizeIterator", "iter"),
-				("Option", "option"),
-				("Some", "option::Option"),
-				("None", "option::Option"),
-				("Result", "result"),
-				("Ok", "result::Result"),
-				("Err", "result::Result"),
-				("String", "string"),
-				("ToString", "string"),
-				("Vec", "vec")
+				// https://doc.rust-lang.org/stable/std/primitive/index.html#reexports
+				("bool", "", LinkType::Primitive),
+				("char", "", LinkType::Primitive),
+				("f32", "", LinkType::Primitive),
+				("f64", "", LinkType::Primitive),
+				("i128", "", LinkType::Primitive),
+				("i16", "", LinkType::Primitive),
+				("i32", "", LinkType::Primitive),
+				("i64", "", LinkType::Primitive),
+				("i8", "", LinkType::Primitive),
+				("isize", "", LinkType::Primitive),
+				("str", "", LinkType::Primitive),
+				("u128", "", LinkType::Primitive),
+				("u16", "", LinkType::Primitive),
+				("u32", "", LinkType::Primitive),
+				("u64", "", LinkType::Primitive),
+				("u8", "", LinkType::Primitive),
+				("usize", "", LinkType::Primitive),
+				// https://doc.rust-lang.org/stable/std/prelude/index.html#prelude-contents
+				("Copy", "marker", LinkType::Trait),
+				("Send", "marker", LinkType::Trait),
+				("Sized", "marker", LinkType::Trait),
+				("Sync", "marker", LinkType::Trait),
+				("Unpin", "marker", LinkType::Trait),
+				("Drop", "ops", LinkType::Trait),
+				("Fn", "ops", LinkType::Trait),
+				("FnMut", "ops", LinkType::Trait),
+				("FnOnce", "ops", LinkType::Trait),
+				("drop", "mem", LinkType::Function),
+				("Box", "boxed", LinkType::Struct),
+				("ToOwned", "borrow", LinkType::Trait),
+				("Clone", "clone", LinkType::Trait),
+				("PartialEq", "cmp", LinkType::Trait),
+				("PartialOrd", "cmp", LinkType::Trait),
+				("Eq", "cmp", LinkType::Trait),
+				("Ord", "cmp", LinkType::Trait),
+				("AsRef", "convert", LinkType::Trait),
+				("AsMut", "convert", LinkType::Trait),
+				("Into", "convert", LinkType::Trait),
+				("From", "convert", LinkType::Trait),
+				("Default", "default", LinkType::Trait),
+				("Iterator", "iter", LinkType::Trait),
+				("Extend", "iter", LinkType::Trait),
+				("IntoIterator", "iter", LinkType::Trait),
+				("DoubleEndedIterator", "iter", LinkType::Trait),
+				("ExactSizeIterator", "iter", LinkType::Trait),
+				("Option", "option", LinkType::Enum),
+				("Some", "option::Option", LinkType::Use),
+				("None", "option::Option", LinkType::Use),
+				("Result", "result", LinkType::Struct),
+				("Ok", "result::Result", LinkType::Use),
+				("Err", "result::Result", LinkType::Use),
+				("String", "string", LinkType::Struct),
+				("ToString", "string", LinkType::Trait),
+				("Vec", "vec", LinkType::Struct),
+				// https://doc.rust-lang.org/stable/std/index.html#macros
+				("assert", "", LinkType::Macro),
+				("assert_eq", "", LinkType::Macro),
+				("assert_ne", "", LinkType::Macro),
+				("cfg", "", LinkType::Macro),
+				("column", "", LinkType::Macro),
+				("compile_error", "", LinkType::Macro),
+				("concat", "", LinkType::Macro),
+				("dbg", "", LinkType::Macro),
+				("debug_assert", "", LinkType::Macro),
+				("debug_assert_eq", "", LinkType::Macro),
+				("debug_assert_ne", "", LinkType::Macro),
+				("env", "", LinkType::Macro),
+				("eprint", "", LinkType::Macro),
+				("eprintln", "", LinkType::Macro),
+				("file", "", LinkType::Macro),
+				("format", "", LinkType::Macro),
+				("format_args", "", LinkType::Macro),
+				("include", "", LinkType::Macro),
+				("include_bytes", "", LinkType::Macro),
+				("include_str", "", LinkType::Macro),
+				("is_x86_feature_detected", "", LinkType::Macro),
+				("line", "", LinkType::Macro),
+				("matches", "", LinkType::Macro),
+				("module_path", "", LinkType::Macro),
+				("option_env", "", LinkType::Macro),
+				("panic", "", LinkType::Macro),
+				("print", "", LinkType::Macro),
+				("println", "", LinkType::Macro),
+				("stringify", "", LinkType::Macro),
+				("thread_local", "", LinkType::Macro),
+				("todo", "", LinkType::Macro),
+				("unimplemented", "", LinkType::Macro),
+				("unreachable", "", LinkType::Macro),
+				("vec", "", LinkType::Macro),
+				("write", "", LinkType::Macro),
+				("writeln", "", LinkType::Macro)
 			]),
 			privmods: HashSet::new()
 		};
@@ -124,9 +189,9 @@ impl Scope {
 		if edition >= Edition::E2021 {
 			// https://blog.rust-lang.org/2021/05/11/edition-2021.html#additions-to-the-prelude
 			for (key, value) in make_prelude([
-				("TryInto", "convert"),
-				("TryFrom", "convert"),
-				("FromIterator", "iter")
+				("TryInto", "convert", LinkType::Use),
+				("TryFrom", "convert", LinkType::Use),
+				("FromIterator", "iter", LinkType::Use)
 			]) {
 				scope.scope.insert(key, value);
 			}
@@ -240,7 +305,7 @@ pub struct Dependency {
 }
 
 impl Dependency {
-	fn new(crate_name: String, req: VersionReq, version: Version) -> Self {
+	pub fn new(crate_name: String, req: VersionReq, version: Version) -> Self {
 		Self {
 			crate_name,
 			req,
