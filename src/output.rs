@@ -1,13 +1,11 @@
 use crate::{
-	depinfo::DependencyInfo,
-	input::{Dependency, InputFile, Scope, TargetType}
+	input::{InputFile, Scope, TargetType},
+	links::Links
 };
-use either::Either;
-use itertools::Itertools;
 use pulldown_cmark::{
 	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
 };
-use semver::{Version, VersionReq};
+use semver::VersionReq;
 use serde::Serialize;
 use std::{
 	collections::{BTreeMap, VecDeque},
@@ -28,29 +26,52 @@ const RUSTDOC_CODEBLOCK_FLAGS: &[&str] = &[
 	"no_run",
 	"should_panic"
 ];
-const RUST_PRIMITIVES: &[&str] = &[
-	// https://doc.rust-lang.org/stable/std/primitive/index.html#reexports
-	"bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "str",
-	"u128", "u16", "u32", "u64", "u8", "usize"
-];
+
+pub struct ResolvedLink {
+	pub path: String,
+	pub link_type: Option<crate::input::LinkType>
+}
 
 impl Scope {
-	fn resolve(&self, crate_name: &str, path: String) -> String {
-		if path.starts_with("::") {
-			return path;
-		}
-		let mut segments = path.split("::").collect::<Vec<_>>();
-		if segments[0] == "crate" {
-			segments[0] = crate_name;
-		}
-		if self.scope.contains_key(segments[0]) {
-			let paths = &self.scope[segments[0]];
-			if let Some((_, path)) = paths.front() {
-				segments[0] = path;
-				return self.resolve(crate_name, segments.join("::"));
+	pub fn resolve(&self, crate_name: &str, path: String) -> ResolvedLink {
+		self.resolve_impl(crate_name, None, path)
+	}
+
+	pub fn resolve_impl(
+		&self,
+		crate_name: &str,
+		link_type: Option<crate::input::LinkType>,
+		path: String
+	) -> ResolvedLink {
+		if !path.starts_with("::") {
+			// split path into segments
+			let mut segments = path.split("::").collect::<Vec<_>>();
+			if segments[0] == "crate" {
+				segments[0] = crate_name;
+			}
+
+			// check if we can resolve anything
+			if self.scope.contains_key(segments[0]) {
+				let paths = &self.scope[segments[0]];
+				if let Some((path_link_type, path)) = paths.front() {
+					segments[0] = path;
+					let path = segments.join("::");
+					if path.starts_with("::") {
+						return ResolvedLink {
+							path,
+							link_type: if segments.len() == 1 {
+								Some(*path_link_type)
+							} else {
+								link_type
+							}
+						};
+					}
+					return self.resolve(crate_name, segments.join("::"));
+				}
 			}
 		}
-		path
+
+		ResolvedLink { path, link_type }
 	}
 }
 
@@ -69,52 +90,6 @@ fn newline(
 	}
 	*has_newline = true;
 	Ok(())
-}
-
-struct Links {
-	deps: DependencyInfo
-}
-
-impl Links {
-	fn new(template: &str, rustdoc: &str) -> Self {
-		Self {
-			deps: DependencyInfo::new(template, rustdoc)
-		}
-	}
-
-	fn build_link(
-		&mut self,
-		crate_name: &str,
-		crate_ver: Option<&Version>,
-		search: Option<&str>
-	) -> String {
-		let lib_name = crate_name.replace('-', "_");
-		let link = match search {
-			Some(search) => format!(
-				"https://docs.rs/{crate_name}/{}/{lib_name}/?search={search}",
-				crate_ver
-					.map(Either::Left)
-					.unwrap_or(Either::Right("latest"))
-			),
-			None => format!(
-				"https://crates.io/crates/{crate_name}{}",
-				crate_ver
-					.map(|ver| Either::Left(format!("/{ver}")))
-					.unwrap_or(Either::Right(""))
-			)
-		};
-		self.deps
-			.add_dependency(crate_name.to_owned(), crate_ver.cloned(), lib_name);
-		link
-	}
-
-	fn std_link(&self, search: &str) -> String {
-		format!("https://doc.rust-lang.org/stable/std/?search={search}")
-	}
-
-	fn primitive_link(&self, primitive: &str) -> String {
-		format!("https://doc.rust-lang.org/stable/std/primitive.{primitive}.html")
-	}
 }
 
 struct Readme<'a> {
@@ -348,61 +323,11 @@ impl<'a> Readme<'a> {
 			if href.starts_with('`') && href.ends_with('`') {
 				href = href[1 .. href.len() - 1].to_owned();
 			}
-			href = self.input.scope.resolve(&self.input.crate_name, href);
-			if let Ok(path) = syn::parse_str::<Path>(&href) {
-				let first = path
-					.segments
-					.first()
-					.map(|segment| segment.ident.to_string())
-					.unwrap_or_default();
-				// remove all arguments so that `Vec<String>` points to Vec
-				let search = path
-					.segments
-					.iter()
-					.filter_map(|segment| match segment.ident.to_string() {
-						ident if ident == "crate" => None,
-						ident => Some(ident)
-					})
-					.join("::");
+			let href = self.input.scope.resolve(&self.input.crate_name, href);
 
-				// TODO more sophisticated link generation
-				if first == "std" || first == "alloc" || first == "core" {
-					self.links.insert(link, links.std_link(search.as_str()));
-				} else if first == "crate" {
-					let (crate_name, crate_ver) = self
-						.input
-						.dependencies
-						.get(&self.input.crate_name)
-						.map(Dependency::as_tuple)
-						.unwrap_or((&self.input.crate_name, None));
-					self.links.insert(
-						link,
-						links.build_link(crate_name, crate_ver, Some(&search))
-					);
-				} else if path.segments.len() > 1 {
-					let (crate_name, crate_ver) = self
-						.input
-						.dependencies
-						.get(&first)
-						.map(Dependency::as_tuple)
-						.unwrap_or((&first, None));
-					self.links.insert(
-						link,
-						links.build_link(crate_name, crate_ver, Some(&search))
-					);
-				} else if RUST_PRIMITIVES.contains(&first.as_str()) {
-					self.links
-						.insert(link, links.primitive_link(first.as_str()));
-				} else {
-					let (crate_name, crate_ver) = self
-						.input
-						.dependencies
-						.get(&first)
-						.map(Dependency::as_tuple)
-						.unwrap_or((&first, None));
-					self.links
-						.insert(link, links.build_link(crate_name, crate_ver, None));
-				}
+			if let Ok(path) = syn::parse_str::<Path>(&href.path) {
+				self.links
+					.insert(link, links.build_link(&path, href.link_type, self.input));
 			}
 		}
 
