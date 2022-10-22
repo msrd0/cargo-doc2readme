@@ -1,8 +1,7 @@
 use crate::{
-	input::{Dependency, InputFile, Scope, TargetType},
+	input::{InputFile, Scope, TargetType},
 	links::Links
 };
-use itertools::Itertools;
 use pulldown_cmark::{
 	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
 };
@@ -26,11 +25,6 @@ const RUSTDOC_CODEBLOCK_FLAGS: &[&str] = &[
 	"ignore",
 	"no_run",
 	"should_panic"
-];
-const RUST_PRIMITIVES: &[&str] = &[
-	// https://doc.rust-lang.org/stable/std/primitive/index.html#reexports
-	"bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "str",
-	"u128", "u16", "u32", "u64", "u8", "usize"
 ];
 
 impl Scope {
@@ -303,59 +297,8 @@ impl<'a> Readme<'a> {
 			}
 			href = self.input.scope.resolve(&self.input.crate_name, href);
 			if let Ok(path) = syn::parse_str::<Path>(&href) {
-				let first = path
-					.segments
-					.first()
-					.map(|segment| segment.ident.to_string())
-					.unwrap_or_default();
-				// remove all arguments so that `Vec<String>` points to Vec
-				let search = path
-					.segments
-					.iter()
-					.filter_map(|segment| match segment.ident.to_string() {
-						ident if ident == "crate" => None,
-						ident => Some(ident)
-					})
-					.join("::");
-
-				// TODO more sophisticated link generation
-				if first == "std" || first == "alloc" || first == "core" {
-					self.links.insert(link, links.std_link(search.as_str()));
-				} else if first == "crate" {
-					let (crate_name, crate_ver) = self
-						.input
-						.dependencies
-						.get(&self.input.crate_name)
-						.map(Dependency::as_tuple)
-						.unwrap_or((&self.input.crate_name, None));
-					self.links.insert(
-						link,
-						links.build_link(crate_name, crate_ver, Some(&search))
-					);
-				} else if path.segments.len() > 1 {
-					let (crate_name, crate_ver) = self
-						.input
-						.dependencies
-						.get(&first)
-						.map(Dependency::as_tuple)
-						.unwrap_or((&first, None));
-					self.links.insert(
-						link,
-						links.build_link(crate_name, crate_ver, Some(&search))
-					);
-				} else if RUST_PRIMITIVES.contains(&first.as_str()) {
-					self.links
-						.insert(link, links.primitive_link(first.as_str()));
-				} else {
-					let (crate_name, crate_ver) = self
-						.input
-						.dependencies
-						.get(&first)
-						.map(Dependency::as_tuple)
-						.unwrap_or((&first, None));
-					self.links
-						.insert(link, links.build_link(crate_name, crate_ver, None));
-				}
+				self.links
+					.insert(link, links.build_link(&path, &self.input));
 			}
 		}
 
