@@ -1,13 +1,12 @@
 use crate::{
-	depinfo::DependencyInfo,
-	input::{Dependency, InputFile, Scope, TargetType}
+	input::{Dependency, InputFile, Scope, TargetType},
+	links::Links
 };
-use either::Either;
 use itertools::Itertools;
 use pulldown_cmark::{
 	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
 };
-use semver::{Version, VersionReq};
+use semver::VersionReq;
 use serde::Serialize;
 use std::{
 	collections::{BTreeMap, VecDeque},
@@ -69,52 +68,6 @@ fn newline(
 	}
 	*has_newline = true;
 	Ok(())
-}
-
-struct Links {
-	deps: DependencyInfo
-}
-
-impl Links {
-	fn new(template: &str, rustdoc: &str) -> Self {
-		Self {
-			deps: DependencyInfo::new(template, rustdoc)
-		}
-	}
-
-	fn build_link(
-		&mut self,
-		crate_name: &str,
-		crate_ver: Option<&Version>,
-		search: Option<&str>
-	) -> String {
-		let lib_name = crate_name.replace('-', "_");
-		let link = match search {
-			Some(search) => format!(
-				"https://docs.rs/{crate_name}/{}/{lib_name}/?search={search}",
-				crate_ver
-					.map(Either::Left)
-					.unwrap_or(Either::Right("latest"))
-			),
-			None => format!(
-				"https://crates.io/crates/{crate_name}{}",
-				crate_ver
-					.map(|ver| Either::Left(format!("/{ver}")))
-					.unwrap_or(Either::Right(""))
-			)
-		};
-		self.deps
-			.add_dependency(crate_name.to_owned(), crate_ver.cloned(), lib_name);
-		link
-	}
-
-	fn std_link(&self, search: &str) -> String {
-		format!("https://doc.rust-lang.org/stable/std/?search={search}")
-	}
-
-	fn primitive_link(&self, primitive: &str) -> String {
-		format!("https://doc.rust-lang.org/stable/std/primitive.{primitive}.html")
-	}
 }
 
 struct Readme<'a> {

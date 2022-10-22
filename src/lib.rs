@@ -8,25 +8,21 @@ use std::{borrow::Cow, env, fs::File, io::Read as _, path::PathBuf};
 
 #[doc(hidden)]
 pub mod depinfo;
-
 #[doc(hidden)]
 pub mod diagnostic;
-
 #[doc(hidden)]
 pub mod input;
-
+#[doc(hidden)]
+pub mod links;
 #[doc(hidden)]
 pub mod output;
-
 #[doc(hidden)]
 pub mod preproc;
-
 #[doc(hidden)]
 pub mod verify;
 
-use crate::input::TargetType;
 use diagnostic::Diagnostic;
-use input::{CrateCode, InputFile};
+use input::{CrateCode, InputFile, TargetType};
 
 #[doc(hidden)]
 /// Read input. The manifest path, if present, will be passed to `cargo metadata`. If you set
