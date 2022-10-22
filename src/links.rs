@@ -55,13 +55,18 @@ impl Links {
 					.get(&first)
 					.map(Dependency::as_tuple)
 					.unwrap_or((&first, None));
+				let lib_name = crate_name.replace('-', "_");
+				self.deps.add_dependency(
+					crate_name.to_owned(),
+					crate_ver.cloned(),
+					lib_name.clone()
+				);
 				if segments.is_empty() {
 					format!(
 						"https://crates.io/crates/{crate_name}{}",
 						crate_ver.map(|ver| format!("/{ver}")).unwrap_or_default()
 					)
 				} else {
-					let lib_name = crate_name.replace('-', "_");
 					format!(
 						"https://docs.rs/{crate_name}/{}/{lib_name}",
 						crate_ver
