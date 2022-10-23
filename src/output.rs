@@ -2,6 +2,7 @@ use crate::{
 	input::{InputFile, Scope, TargetType},
 	links::Links
 };
+use log::debug;
 use pulldown_cmark::{
 	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
 };
@@ -44,7 +45,30 @@ impl Scope {
 		path: String
 	) -> ResolvedLink {
 		if !path.starts_with("::") {
-			// split path into segments
+			// split path into segments, ignoring <...> generics
+			let mut path = path.clone();
+			loop {
+				let idx = match (path.find('<'), path.rfind('>')) {
+					(Some(idx1), Some(idx2)) if idx1 < idx2 => idx1,
+					_ => break
+				};
+				let mut end = idx + 1;
+				let mut depth: usize = 1;
+				for ch in path[end ..].chars() {
+					if ch == '<' {
+						depth += 1;
+					} else if ch == '>' {
+						depth -= 1;
+					}
+					end += ch.len_utf8();
+
+					if depth == 0 {
+						break;
+					}
+				}
+				path.replace_range(idx .. end, "");
+			}
+			debug!("Resolving path {path:?}");
 			let mut segments = path.split("::").collect::<Vec<_>>();
 			if segments[0] == "crate" {
 				segments[0] = crate_name;
