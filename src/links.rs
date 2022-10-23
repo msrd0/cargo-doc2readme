@@ -196,6 +196,16 @@ mod tests {
 			"https://doc.rust-lang.org/stable/std/option/enum.Option.html"
 		);
 
+		test_enum_generics(
+			"Option<String>",
+			"https://doc.rust-lang.org/stable/std/option/enum.Option.html"
+		);
+
+		test_enum_nested_generics(
+			"Option<HashMap<String, Vec<String>>>",
+			"https://doc.rust-lang.org/stable/std/option/enum.Option.html"
+		);
+
 		test_macro_with(
 			"vec!",
 			"https://doc.rust-lang.org/stable/std/macro.vec.html"
