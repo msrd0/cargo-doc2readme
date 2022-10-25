@@ -162,7 +162,7 @@ impl DependencyInfo {
 	/// to the markdown output, and does not correspond to any "official" markdown spec version.
 	#[inline]
 	pub fn markdown_version() -> u8 {
-		0
+		1
 	}
 
 	pub fn new(template: &str, rustdoc: &str) -> Self {

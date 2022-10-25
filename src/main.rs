@@ -158,7 +158,9 @@ fn main() -> ExitCode {
 			Ok(mut file) => {
 				let check = verify::check_up2date(input_file, &template, &mut file)
 					.expect("Failed to check readme");
-				check.print();
+				check
+					.print(out.display().to_string())
+					.expect("Unable to write to stderr");
 				check.into()
 			},
 			Err(e) if e.kind() == io::ErrorKind::NotFound => {

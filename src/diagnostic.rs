@@ -1,4 +1,4 @@
-use ariadne::{Label, Report, ReportKind};
+use ariadne::{Color, Label, Report, ReportKind};
 use std::{io, ops::Range};
 
 pub type Span = Range<usize>;
@@ -46,7 +46,23 @@ impl Diagnostic {
 		line_offset + at.column
 	}
 
-	/// Warning without a code label
+	/// Info without a code label.
+	pub fn info<T>(&mut self, msg: T)
+	where
+		T: ToString
+	{
+		self.reports.push(
+			Report::build(
+				ReportKind::Custom("info", Color::Green),
+				self.filename.clone(),
+				0
+			)
+			.with_message(msg)
+			.finish()
+		);
+	}
+
+	/// Warning without a code label.
 	pub fn warn<T>(&mut self, msg: T)
 	where
 		T: ToString
@@ -58,6 +74,7 @@ impl Diagnostic {
 		);
 	}
 
+	/// Warning with a code label.
 	pub fn warn_with_label<T, L>(&mut self, msg: T, span: proc_macro2::Span, label: L)
 	where
 		T: ToString,
@@ -72,6 +89,7 @@ impl Diagnostic {
 		);
 	}
 
+	/// Syntax error with the code span from syn's error.
 	pub fn syntax_error(&mut self, err: syn::Error) {
 		let mut report = Report::build(
 			ReportKind::Error,
@@ -90,6 +108,19 @@ impl Diagnostic {
 			);
 		}
 		self.reports.push(report.finish());
+		self.fail = true;
+	}
+
+	/// Error without a code label.
+	pub fn error<T>(&mut self, msg: T)
+	where
+		T: ToString
+	{
+		self.reports.push(
+			Report::build(ReportKind::Error, self.filename.clone(), 0)
+				.with_message(msg)
+				.finish()
+		);
 		self.fail = true;
 	}
 }
