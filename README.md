@@ -3,13 +3,33 @@
 `cargo doc2readme` is a cargo subcommand to create a readme file to display on [GitHub][__link0] or [crates.io][__link1], containing the rustdoc comments from your code.
 
 
-## Usage
+## Installation
+
+If you are using ArchLinux, you can install cargo-doc2readme from the AUR:
+
+
+```bash
+yay -S cargo-doc2readme
+```
+
+On other Operating Systems, make sure you have Rust installed (using your distributions package manager, but if your package manager is garbage or you are running Windows, try [rustup][__link2]) and then run the following command:
 
 
 ```bash
 cargo install cargo-doc2readme
-cargo doc2readme --out README.md
 ```
+
+
+## Usage
+
+To generate your readme, simply run
+
+
+```bash
+cargo doc2readme
+```
+
+This will output the readme to a file called `README.md`, using `README.j2` or the built-in template.
 
 If you want to run this using GitHub Actions, you can use the pre-built docker image:
 
@@ -18,7 +38,7 @@ If you want to run this using GitHub Actions, you can use the pre-built docker i
 readme:
   runs-on: ubuntu-latest
   steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: docker://ghcr.io/msrd0/cargo-doc2readme
       with:
         entrypoint: cargo
@@ -43,7 +63,7 @@ readme:
 
 ## Similar tools
 
-[`cargo readme`][__link2] is a similar tool. However, it brings its own Rust code parser that only covers the 95% use case. Also, it does not support Rust path links introduced in Rust 1.48, making your readme ugly due to GitHub showing the unsupported links as raw markdown, and being less convenient for the reader that has to search [docs.rs][__link3] instead of clicking on a link.
+[`cargo readme`][__link3] is a similar tool. However, it brings its own Rust code parser that only covers the 95% use case. Also, it does not support Rust path links introduced in Rust 1.48, making your readme ugly due to GitHub showing the unsupported links as raw markdown, and being less convenient for the reader that has to search [docs.rs][__link4] instead of clicking on a link.
 
 
 ## Stability Guarantees
@@ -53,5 +73,6 @@ This project adheres to semantic versioning. All versions will be tested against
 
  [__link0]: https://github.com
  [__link1]: https://crates.io
- [__link2]: https://github.com/livioribeiro/cargo-readme
- [__link3]: https://docs.rs
+ [__link2]: https://rustup.rs/
+ [__link3]: https://github.com/livioribeiro/cargo-readme
+ [__link4]: https://docs.rs

@@ -6,12 +6,32 @@
 //! [GitHub] or [crates.io],
 //! containing the rustdoc comments from your code.
 //!
-//! # Usage
-//!
+//! # Installation
+//! 
+//! If you are using ArchLinux, you can install cargo-doc2readme from the AUR:
+//! 
+//! ```bash
+//! yay -S cargo-doc2readme
+//! ```
+//! 
+//! On other Operating Systems, make sure you have Rust installed (using your
+//! distributions package manager, but if your package manager is garbage or you are
+//! running Windows, try [rustup](https://rustup.rs/)) and then run the following command:
+//! 
 //! ```bash
 //! cargo install cargo-doc2readme
-//! cargo doc2readme --out README.md
 //! ```
+//! 
+//! # Usage
+//!
+//! To generate your readme, simply run
+//! 
+//! ```bash
+//! cargo doc2readme
+//! ```
+//! 
+//! This will output the readme to a file called `README.md`, using `README.j2` or the
+//! built-in template.
 //!
 //! If you want to run this using GitHub Actions, you can use the pre-built docker image:
 //!
@@ -19,7 +39,7 @@
 //! readme:
 //!   runs-on: ubuntu-latest
 //!   steps:
-//!     - uses: actions/checkout@v2
+//!     - uses: actions/checkout@v3
 //!     - uses: docker://ghcr.io/msrd0/cargo-doc2readme
 //!       with:
 //!         entrypoint: cargo
