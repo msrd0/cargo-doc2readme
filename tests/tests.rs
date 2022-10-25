@@ -55,17 +55,20 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 	let stderr = sanitize_stderr(stderr)?;
 
 	// The program output should always match, no matter if we pass or fail.
-	let fail_outcome = if stderr_path.exists() {
-		let expected = fs::read_to_string(&stderr_path)?;
-		assert_eq!(expected, stderr);
-		Ok(Outcome::Passed)
-	} else if !stderr.trim().is_empty() {
-		fs::write(&stderr_path, stderr.as_bytes())?;
-		Ok(Outcome::Ignored)
-	} else {
-		Ok(Outcome::Failed {
-			msg: Some("Missing error message".into())
-		})
+	let fail_outcome = match data.test_type {
+		TestType::ReadmePass | TestType::ReadmeFail => Some(if stderr_path.exists() {
+			let expected = fs::read_to_string(&stderr_path)?;
+			assert_eq!(expected, stderr);
+			Outcome::Passed
+		} else if !stderr.trim().is_empty() {
+			fs::write(&stderr_path, stderr.as_bytes())?;
+			Outcome::Ignored
+		} else {
+			Outcome::Failed {
+				msg: Some("Missing error message".into())
+			}
+		}),
+		TestType::CheckPass | TestType::CheckFail => None
 	};
 
 	match (data.test_type, diagnostic.is_fail()) {
@@ -86,7 +89,7 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 		},
 
 		// when failing, no readme check is required
-		(TestType::ReadmeFail, true) => fail_outcome,
+		(TestType::ReadmeFail, true) => Ok(fail_outcome.unwrap()),
 
 		// expect check to pass
 		(TestType::CheckPass, false) => {
