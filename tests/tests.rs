@@ -3,19 +3,31 @@
 #![forbid(unsafe_code)]
 
 use anyhow::bail;
-use cargo_doc2readme::{output, read_input};
+use cargo_doc2readme::{output, read_input, verify};
 use lazy_regex::regex_replace_all;
 use libtest::{run_tests, Arguments, Outcome, Test};
 use pretty_assertions::assert_eq;
 use std::{
-	fs,
+	fs::{self, File},
+	panic::catch_unwind,
 	path::{Path, PathBuf}
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum TestType {
-	Pass,
-	Fail
+	/// Test that the readme generation passes, and the output matches exactly the test
+	/// case.
+	ReadmePass,
+
+	/// Test that the readme check reports that everything is up to date.
+	CheckPass,
+
+	/// Test that the readme generation fails, and that correct error message was printed
+	/// to stderr.
+	ReadmeFail,
+
+	/// Test that the readme check reports that the readme needs updating.
+	CheckFail
 }
 
 struct TestData {
@@ -52,12 +64,12 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 		})
 	};
 
-	let mut actual = Vec::<u8>::new();
-	output::emit(input_file, &template, &mut actual)?;
-
 	match (data.test_type, diagnostic.is_fail()) {
 		// when passing, also check the readme
-		(TestType::Pass, false) => {
+		(TestType::ReadmePass, false) => {
+			let mut actual = Vec::<u8>::new();
+			output::emit(input_file, &template, &mut actual)?;
+
 			if readme_path.exists() {
 				let actual = String::from_utf8(actual)?;
 				let expected = fs::read_to_string(&readme_path)?;
@@ -70,44 +82,85 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 		},
 
 		// when failing, no readme check is required
-		(TestType::Fail, true) => fail_outcome,
+		(TestType::ReadmeFail, true) => fail_outcome,
+
+		// expect check to pass
+		(TestType::CheckPass, false) => {
+			if readme_path.exists() {
+				let mut file = File::open(readme_path)?;
+				let check = verify::check_up2date(input_file, &template, &mut file)?;
+				if check.is_ok() {
+					Ok(Outcome::Passed)
+				} else {
+					Ok(Outcome::Failed {
+						msg: Some("Expected check to pass, but it failed".into())
+					})
+				}
+			} else {
+				Ok(Outcome::Ignored)
+			}
+		},
+
+		// expect check to fail
+		(TestType::CheckFail, true) => Ok(Outcome::Passed),
+		(TestType::CheckFail, false) => {
+			if readme_path.exists() {
+				let mut file = File::open(readme_path)?;
+				let check = verify::check_up2date(input_file, &template, &mut file)?;
+				if check.is_ok() {
+					Ok(Outcome::Failed {
+						msg: Some("Expected check to fail, but it passed".into())
+					})
+				} else {
+					Ok(Outcome::Passed)
+				}
+			} else {
+				Ok(Outcome::Failed {
+					msg: Some("Missing README.md file to check against".into())
+				})
+			}
+		},
 
 		// outcome mismatch
-		(TestType::Pass, true) => bail!("Expected test to pass, but it failed"),
-		(TestType::Fail, false) => bail!("Expected test to fail, but it passed")
+		(TestType::ReadmePass, true) => bail!("Expected test to pass, but it failed"),
+		(TestType::CheckPass, true) => bail!("Expected check to pass, but it failed"),
+		(TestType::ReadmeFail, false) => bail!("Expected test to fail, but it passed")
 	}
 }
 
-fn add_tests_from_dir<P>(
+fn add_tests_from_dir<P, I>(
 	tests: &mut Vec<Test<TestData>>,
 	path: P,
-	test_type: TestType
+	test_types: I
 ) -> anyhow::Result<()>
 where
-	P: AsRef<Path>
+	P: AsRef<Path>,
+	I: IntoIterator<Item = TestType> + Copy
 {
 	for file in fs::read_dir(path)? {
 		let file = file?;
 		let path = file.path();
 		let ty = file.file_type()?;
 		if ty.is_dir() {
-			add_tests_from_dir(tests, &path, test_type)?;
+			add_tests_from_dir(tests, &path, test_types)?;
 		} else if ty.is_file()
 			&& path
 				.file_name()
 				.map(|name| name == "Cargo.toml")
 				.unwrap_or(false)
 		{
-			tests.push(Test {
-				name: path.display().to_string(),
-				kind: "".into(),
-				is_ignored: false,
-				is_bench: false,
-				data: TestData {
-					manifest_path: path,
-					test_type
-				}
-			});
+			for test_type in test_types {
+				tests.push(Test {
+					name: format!("{} ({test_type:?})", path.display()),
+					kind: "".into(),
+					is_ignored: false,
+					is_bench: false,
+					data: TestData {
+						manifest_path: path.clone(),
+						test_type
+					}
+				});
+			}
 		}
 	}
 	Ok(())
@@ -116,14 +169,21 @@ where
 fn main() -> anyhow::Result<()> {
 	let args = Arguments::from_args();
 
+	use TestType::*;
 	let mut tests = Vec::new();
-	add_tests_from_dir(&mut tests, "tests/pass", TestType::Pass)?;
-	add_tests_from_dir(&mut tests, "tests/fail", TestType::Fail)?;
+	add_tests_from_dir(&mut tests, "tests/pass", [ReadmePass, CheckPass])?;
+	add_tests_from_dir(&mut tests, "tests/fail", [ReadmeFail])?;
+	add_tests_from_dir(&mut tests, "tests/check", [CheckFail])?;
 
-	run_tests(&args, tests, |test| match run_test(&test.data) {
-		Ok(outcome) => outcome,
-		Err(err) => Outcome::Failed {
-			msg: Some(format!("{err:?}"))
+	run_tests(&args, tests, |test| {
+		match catch_unwind(|| run_test(&test.data)) {
+			Ok(result) => match result {
+				Ok(outcome) => outcome,
+				Err(err) => Outcome::Failed {
+					msg: Some(format!("{err:?}"))
+				}
+			},
+			Err(_) => Outcome::Failed { msg: None }
 		}
 	})
 	.exit();

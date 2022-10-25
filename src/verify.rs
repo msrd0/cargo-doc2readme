@@ -40,13 +40,17 @@ impl Check {
 			Check::OutputChanged => error!("Readme has changed")
 		}
 	}
+
+	pub fn is_ok(&self) -> bool {
+		matches!(self, Self::UpToDate)
+	}
 }
 
 impl From<Check> for ExitCode {
 	fn from(check: Check) -> Self {
-		match check {
-			Check::UpToDate => Self::SUCCESS,
-			_ => Self::FAILURE
+		match check.is_ok() {
+			true => Self::SUCCESS,
+			false => Self::FAILURE
 		}
 	}
 }
