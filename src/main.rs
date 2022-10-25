@@ -7,29 +7,29 @@
 //! containing the rustdoc comments from your code.
 //!
 //! # Installation
-//! 
+//!
 //! If you are using ArchLinux, you can install cargo-doc2readme from the AUR:
-//! 
+//!
 //! ```bash
 //! yay -S cargo-doc2readme
 //! ```
-//! 
+//!
 //! On other Operating Systems, make sure you have Rust installed (using your
 //! distributions package manager, but if your package manager is garbage or you are
 //! running Windows, try [rustup](https://rustup.rs/)) and then run the following command:
-//! 
+//!
 //! ```bash
 //! cargo install cargo-doc2readme
 //! ```
-//! 
+//!
 //! # Usage
 //!
 //! To generate your readme, simply run
-//! 
+//!
 //! ```bash
 //! cargo doc2readme
 //! ```
-//! 
+//!
 //! This will output the readme to a file called `README.md`, using `README.j2` or the
 //! built-in template.
 //!
