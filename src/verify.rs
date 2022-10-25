@@ -1,5 +1,5 @@
-use crate::{depinfo::DependencyInfo, input::InputFile, output};
-use log::{debug, error, info};
+use crate::{depinfo::DependencyInfo, diagnostic::Diagnostic, input::InputFile, output};
+use log::debug;
 use memchr::{memchr2, memmem};
 use std::{io, process::ExitCode};
 
@@ -24,21 +24,39 @@ pub enum Check {
 }
 
 impl Check {
-	pub fn print(&self) {
+	pub fn print<T: Into<String>>(&self, filename: T) -> io::Result<()> {
+		self.print_to(filename, io::stderr())
+	}
+
+	pub fn print_to<T, W>(&self, filename: T, out: W) -> Result<(), io::Error>
+	where
+		T: Into<String>,
+		W: io::Write
+	{
+		let mut diag = Diagnostic::new(filename.into(), String::new());
 		match self {
-			Check::UpToDate => info!("Readme is up to date"),
-			Check::InvalidDepInfo(e) => {
-				error!("Readme has invalid dependency info: {e}")
+			Check::UpToDate => {
+				diag.info("Readme is up to date");
 			},
-			Check::InputChanged => error!("Input has changed"),
+			Check::InvalidDepInfo(e) => {
+				diag.warn(format_args!("Readme has invalid dependency info: {e}"));
+			},
+			Check::InputChanged => diag.error("Input has changed"),
 			Check::IncompatibleVersion(name) => {
-				error!("Readme links to incompatible version of dependency `{name}`")
+				diag.error(format_args!(
+					"Readme links to incompatible version of dependency `{name}`"
+				));
 			},
 			Check::OutdatedMarkdown => {
-				error!("The readme was created with an outdated version of this tool")
+				diag.error(
+					"The readme was created with an outdated version of this tool"
+				);
 			},
-			Check::OutputChanged => error!("Readme has changed")
+			Check::OutputChanged => {
+				diag.error("Readme has changed");
+			}
 		}
+		diag.print_to(out)
 	}
 
 	pub fn is_ok(&self) -> bool {

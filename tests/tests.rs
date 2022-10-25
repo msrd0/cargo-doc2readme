@@ -35,6 +35,11 @@ struct TestData {
 	test_type: TestType
 }
 
+fn sanitize_stderr(stderr: Vec<u8>) -> anyhow::Result<String> {
+	let stderr = String::from_utf8(stderr)?;
+	Ok(regex_replace_all!("\x1B\\[[^m]+m", &stderr, |_| "").into_owned())
+}
+
 fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 	let manifest_path = data.manifest_path.clone();
 	let parent = manifest_path.parent().unwrap();
@@ -47,8 +52,7 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 
 	let mut stderr = Vec::new();
 	diagnostic.print_to(&mut stderr).unwrap();
-	let stderr = String::from_utf8(stderr)?;
-	let stderr = regex_replace_all!("\x1B\\[[^m]+m", &stderr, |_| "");
+	let stderr = sanitize_stderr(stderr)?;
 
 	// The program output should always match, no matter if we pass or fail.
 	let fail_outcome = if stderr_path.exists() {
@@ -112,7 +116,22 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 						msg: Some("Expected check to fail, but it passed".into())
 					})
 				} else {
-					Ok(Outcome::Passed)
+					let mut stderr = Vec::new();
+					check.print_to("README.md", &mut stderr).unwrap();
+					let stderr = sanitize_stderr(stderr)?;
+
+					Ok(if stderr_path.exists() {
+						let expected = fs::read_to_string(&stderr_path)?;
+						assert_eq!(expected, stderr);
+						Outcome::Passed
+					} else if !stderr.trim().is_empty() {
+						fs::write(&stderr_path, stderr.as_bytes())?;
+						Outcome::Ignored
+					} else {
+						Outcome::Failed {
+							msg: Some("Missing error message".into())
+						}
+					})
 				}
 			} else {
 				Ok(Outcome::Failed {
