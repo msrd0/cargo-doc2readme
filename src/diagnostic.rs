@@ -41,7 +41,7 @@ impl Diagnostic {
 			.code
 			.split('\n')
 			.take(at.line - 1)
-			.map(|line| line.len() + 1)
+			.map(|line| line.chars().count() + 1)
 			.sum();
 		line_offset + at.column
 	}
