@@ -86,9 +86,16 @@ impl Scope {
 			.push_front((ty, value.into()));
 	}
 
+	pub(crate) fn empty() -> Self {
+		Self {
+			scope: HashMap::new(),
+			privmods: HashSet::new()
+		}
+	}
+
 	/// Create a new scope from the Rust prelude.
 	pub fn prelude(edition: Edition) -> Self {
-		let mut scope = Scope {
+		let mut scope = Self {
 			scope: make_prelude([
 				// https://doc.rust-lang.org/stable/std/primitive/index.html#reexports
 				("bool", "", LinkType::Primitive),
