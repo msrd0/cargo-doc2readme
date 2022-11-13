@@ -108,7 +108,7 @@ pub fn read_input(
 	let metadata = unwrap!(cmd.exec(), "Failed to get cargo metadata");
 	let pkg = unwrap!(
 		metadata.root_package(),
-		"Missing root package; did you call this command on a workspace root?"
+		"Missing package. Please make sure there is a package here, workspace roots don't contain any documentation."
 	);
 
 	// find the target whose rustdoc comment we'll use.

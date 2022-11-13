@@ -1,1 +1,1 @@
-Error: Missing root package; did you call this command on a workspace root?
+Error: Missing package. Please make sure there is a package here, workspace roots don't contain any documentation.
