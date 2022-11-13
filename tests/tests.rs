@@ -153,7 +153,8 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 fn add_tests_from_dir<P, I>(
 	tests: &mut Vec<Test<TestData>>,
 	path: P,
-	test_types: I
+	test_types: I,
+	recursive: bool
 ) -> anyhow::Result<()>
 where
 	P: AsRef<Path>,
@@ -163,8 +164,8 @@ where
 		let file = file?;
 		let path = file.path();
 		let ty = file.file_type()?;
-		if ty.is_dir() {
-			add_tests_from_dir(tests, &path, test_types)?;
+		if ty.is_dir() && recursive {
+			add_tests_from_dir(tests, &path, test_types, false)?;
 		} else if ty.is_file()
 			&& path
 				.file_name()
@@ -193,9 +194,9 @@ fn main() -> anyhow::Result<()> {
 
 	use TestType::*;
 	let mut tests = Vec::new();
-	add_tests_from_dir(&mut tests, "tests/pass", [ReadmePass, CheckPass])?;
-	add_tests_from_dir(&mut tests, "tests/fail", [ReadmeFail])?;
-	add_tests_from_dir(&mut tests, "tests/check", [CheckFail])?;
+	add_tests_from_dir(&mut tests, "tests/pass", [ReadmePass, CheckPass], true)?;
+	add_tests_from_dir(&mut tests, "tests/fail", [ReadmeFail], true)?;
+	add_tests_from_dir(&mut tests, "tests/check", [CheckFail], true)?;
 
 	run_tests(&args, tests, |test| {
 		match catch_unwind(|| run_test(&test.data)) {

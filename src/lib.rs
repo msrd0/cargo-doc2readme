@@ -4,7 +4,7 @@
 
 use cargo_metadata::{CargoOpt, MetadataCommand, Target};
 use log::{debug, info};
-use std::{borrow::Cow, env, fs::File, io::Read as _, path::PathBuf};
+use std::{borrow::Cow, collections::HashMap, env, fmt::Display, fs, path::PathBuf};
 
 #[doc(hidden)]
 pub mod depinfo;
@@ -21,6 +21,7 @@ pub mod preproc;
 #[doc(hidden)]
 pub mod verify;
 
+use crate::input::Scope;
 use diagnostic::Diagnostic;
 use input::{CrateCode, InputFile, TargetType};
 
@@ -35,6 +36,62 @@ pub fn read_input(
 	expand_macros: bool,
 	template: PathBuf
 ) -> (InputFile, Cow<'static, str>, Diagnostic) {
+	/// Create a fake input when reading the input failed before we had any code.
+	fn fail<T: Display>(msg: T) -> (InputFile, Cow<'static, str>, Diagnostic) {
+		let input = InputFile {
+			crate_name: "N/A".into(),
+			target_type: TargetType::Lib,
+			repository: None,
+			license: None,
+			rust_version: None,
+			rustdoc: String::new(),
+			dependencies: HashMap::new(),
+			scope: Scope::empty()
+		};
+		let template = "".into();
+		let mut diagnostic = Diagnostic::new("<none>".into(), String::new());
+		diagnostic.error(msg);
+		(input, template, diagnostic)
+	}
+
+	trait Fail {
+		type Ok;
+
+		fn fail(self, msg: &'static str) -> Result<Self::Ok, Cow<'static, str>>;
+	}
+
+	impl<T> Fail for Option<T> {
+		type Ok = T;
+
+		fn fail(self, msg: &'static str) -> Result<Self::Ok, Cow<'static, str>> {
+			self.ok_or(Cow::Borrowed(msg))
+		}
+	}
+
+	impl<T, E: Display> Fail for Result<T, E> {
+		type Ok = T;
+
+		fn fail(self, msg: &'static str) -> Result<T, Cow<'static, str>> {
+			self.map_err(|err| format!("{msg}: {err}").into())
+		}
+	}
+
+	macro_rules! unwrap {
+		($expr:expr) => {
+			match $expr {
+				Ok(ok) => ok,
+				Err(err) => return fail(err)
+			}
+		};
+
+		($expr:expr, $msg:literal) => {
+			match Fail::fail($expr, $msg) {
+				Ok(ok) => ok,
+				Err(err) => return fail(err)
+			}
+		};
+	}
+
 	// get the cargo manifest path
 	let manifest_path = match manifest_path {
 		Some(path) if path.is_relative() => Some(env::current_dir().unwrap().join(path)),
@@ -48,10 +105,11 @@ pub fn read_input(
 	if let Some(path) = &manifest_path {
 		cmd.manifest_path(path);
 	}
-	let metadata = cmd.exec().expect("Failed to get cargo metadata");
-	let pkg = metadata
-		.root_package()
-		.expect("Missing root package; did you call this command on a workspace root?");
+	let metadata = unwrap!(cmd.exec(), "Failed to get cargo metadata");
+	let pkg = unwrap!(
+		metadata.root_package(),
+		"Missing package. Please make sure there is a package here, workspace roots don't contain any documentation."
+	);
 
 	// find the target whose rustdoc comment we'll use.
 	// this uses a library target if exists, otherwise a binary target with the same name as the
@@ -82,14 +140,22 @@ pub fn read_input(
 					.map(|target| (target, TargetType::Bin))
 			})
 	};
-	let (target, target_type) = target_and_type
-		.or_else(|| {
+	let (target, target_type) = unwrap!(
+		target_and_type.or_else(|| {
 			pkg.targets
 				.iter()
 				.find(|target| target.is_bin())
 				.map(|target| (target, TargetType::Bin))
-		})
-		.expect("Failed to find a library or binary target");
+		}),
+		"Failed to find a library or binary target"
+	);
+
+	// resolve the template
+	let template: Cow<'static, str> = if template.exists() {
+		unwrap!(fs::read_to_string(template), "Failed to read template").into()
+	} else {
+		include_str!("README.j2").into()
+	};
 
 	// read crate code
 	let file = target.src_path.as_std_path();
@@ -99,24 +165,14 @@ pub fn read_input(
 		.to_string_lossy()
 		.into_owned();
 	let code = if expand_macros {
-		CrateCode::read_expansion(manifest_path.as_ref(), target)
-			.expect("Failed to read crate code")
+		unwrap!(
+			CrateCode::read_expansion(manifest_path.as_ref(), target),
+			"Failed to read crate code"
+		)
 	} else {
-		CrateCode::read_from_disk(file).expect("Failed to read crate code")
+		unwrap!(CrateCode::read_from_disk(file), "Failed to read crate code")
 	};
 	let mut diagnostics = Diagnostic::new(filename, code.0.clone());
-
-	// resolve the template
-	let template: Cow<'static, str> = if template.exists() {
-		let mut buf = String::new();
-		File::open(template)
-			.expect("Failed to open template")
-			.read_to_string(&mut buf)
-			.expect("Failed to read template");
-		buf.into()
-	} else {
-		include_str!("README.j2").into()
-	};
 
 	// process the target
 	info!("Reading {}", file.display());
