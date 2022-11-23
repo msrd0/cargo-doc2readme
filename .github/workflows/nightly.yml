@@ -24,9 +24,7 @@ jobs:
           tag="$image:nightly"
           
           echo "==> Building docker image"
-          docker build . --pull --tag "$image" -f Dockerfile.nightly
-          docker tag "$image" "$tag"
+          docker build . --pull --tag "$tag" -f Dockerfile.nightly
           
           echo "==> Pushing docker image"
           docker push "$tag"
-          docker push "$image"
