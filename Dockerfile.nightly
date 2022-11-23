@@ -1,0 +1,20 @@
+FROM alpine
+
+COPY Cargo.toml /src/
+COPY Cargo.lock /src/
+COPY src/ /src/src
+WORKDIR /src/
+
+ENV RUSTUP_HOME="/usr/local/rust"
+ENV CARGO_HOME="$RUSTUP_HOME/cargo"
+ENV PATH="$PATH:$CARGO_HOME/bin"
+
+# unstable but reduces the amount downloaded significantly
+ENV CARGO_UNSTABLE_SPARSE_REGISTRY=true
+
+RUN apk add --no-cache libcurl libgcc \
+ && apk add --no-cache --virtual .build-deps curl-dev gcc musl-dev rustup \
+ && rustup-init -y --default-toolchain nightly --profile minimal --no-modify-path \
+ && cargo install --path . --locked \
+ && apk del --no-cache .build-deps \
+ && rm -rf target/ "$CARGO_HOME/registry/"
