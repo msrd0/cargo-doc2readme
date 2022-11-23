@@ -46,6 +46,10 @@
 //!         args: doc2readme --check
 //! ```
 //!
+//! This will use the latest stable Rust version available when the latest release of
+//! cargo doc2readme was created. If you need a newer/nightly Rust compiler, use the
+//! `ghcr.io/msrd0/cargo-doc2readme:nightly` docker image instead.
+//!
 //! # Features
 //!
 //!  - parse markdown from your rustdoc comments and embed it into your readme
