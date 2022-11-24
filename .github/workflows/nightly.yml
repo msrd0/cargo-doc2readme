@@ -6,6 +6,7 @@ on:
       - 'main'
     paths:
       - '.github/workflows/nightly.yml'
+      - 'Dockerfile.nightly'
   release:
     types: [created]
   schedule:
