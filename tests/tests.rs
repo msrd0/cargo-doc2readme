@@ -47,8 +47,15 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 	let readme_path = parent.join("README.md");
 	let stderr_path = parent.join("stderr.log");
 
-	let (input_file, template, diagnostic) =
-		read_input(Some(manifest_path), false, false, template_path);
+	let (input_file, template, diagnostic) = read_input(
+		Some(manifest_path),
+		false,
+		false,
+		template_path,
+		None,
+		false,
+		false
+	);
 
 	let mut stderr = Vec::new();
 	diagnostic.print_to(&mut stderr).unwrap();

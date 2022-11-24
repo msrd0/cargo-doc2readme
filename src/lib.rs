@@ -34,7 +34,10 @@ pub fn read_input(
 	manifest_path: Option<PathBuf>,
 	prefer_bin: bool,
 	expand_macros: bool,
-	template: PathBuf
+	template: PathBuf,
+	features: Option<String>,
+	no_default_features: bool,
+	all_features: bool
 ) -> (InputFile, Cow<'static, str>, Diagnostic) {
 	/// Create a fake input when reading the input failed before we had any code.
 	fn fail<T: Display>(msg: T) -> (InputFile, Cow<'static, str>, Diagnostic) {
@@ -166,7 +169,13 @@ pub fn read_input(
 		.into_owned();
 	let code = if expand_macros {
 		unwrap!(
-			CrateCode::read_expansion(manifest_path.as_ref(), target),
+			CrateCode::read_expansion(
+				manifest_path.as_ref(),
+				target,
+				features,
+				no_default_features,
+				all_features
+			),
 			"Failed to read crate code"
 		)
 	} else {
