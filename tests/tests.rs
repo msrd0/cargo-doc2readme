@@ -2,10 +2,9 @@
 #![deny(elided_lifetimes_in_paths)]
 #![forbid(unsafe_code)]
 
-use anyhow::bail;
 use cargo_doc2readme::{output, read_input, verify};
 use lazy_regex::regex_replace_all;
-use libtest::{run_tests, Arguments, Outcome, Test};
+use libtest::{Arguments, Failed, Trial};
 use pretty_assertions::assert_eq;
 use std::{
 	fs::{self, File},
@@ -40,7 +39,7 @@ fn sanitize_stderr(stderr: Vec<u8>) -> anyhow::Result<String> {
 	Ok(regex_replace_all!("\x1B\\[[^m]+m", &stderr, |_| "").into_owned())
 }
 
-fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
+fn run_test(data: &TestData) -> Result<(), Failed> {
 	let manifest_path = data.manifest_path.clone();
 	let parent = manifest_path.parent().unwrap();
 	let template_path = parent.join("README.j2");
@@ -59,14 +58,12 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 		TestType::ReadmePass | TestType::ReadmeFail => Some(if stderr_path.exists() {
 			let expected = fs::read_to_string(&stderr_path)?;
 			assert_eq!(expected, stderr);
-			Outcome::Passed
+			Ok(())
 		} else if !stderr.trim().is_empty() {
 			fs::write(&stderr_path, stderr.as_bytes())?;
-			Outcome::Ignored
+			Err("WIP".into())
 		} else {
-			Outcome::Failed {
-				msg: Some("Missing error message".into())
-			}
+			Err("Missing error message".into())
 		}),
 		TestType::CheckPass | TestType::CheckFail => None
 	};
@@ -81,15 +78,15 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 				let actual = String::from_utf8(actual)?;
 				let expected = fs::read_to_string(&readme_path)?;
 				assert_eq!(expected, actual);
-				Ok(Outcome::Passed)
+				Ok(())
 			} else {
 				fs::write(&readme_path, &actual)?;
-				Ok(Outcome::Ignored)
+				Err("WIP".into())
 			}
 		},
 
 		// when failing, no readme check is required
-		(TestType::ReadmeFail, true) => Ok(fail_outcome.unwrap()),
+		(TestType::ReadmeFail, true) => fail_outcome.unwrap(),
 
 		// expect check to pass
 		(TestType::CheckPass, false) => {
@@ -97,61 +94,59 @@ fn run_test(data: &TestData) -> anyhow::Result<Outcome> {
 				let mut file = File::open(readme_path)?;
 				let check = verify::check_up2date(input_file, &template, &mut file)?;
 				if check.is_ok() {
-					Ok(Outcome::Passed)
+					Ok(())
 				} else {
-					Ok(Outcome::Failed {
-						msg: Some("Expected check to pass, but it failed".into())
-					})
+					Err("Expected check to pass, but it failed".into())
 				}
 			} else {
-				Ok(Outcome::Ignored)
+				Err("WIP".into())
 			}
 		},
 
 		// expect check to fail
-		(TestType::CheckFail, true) => Ok(Outcome::Passed),
+		(TestType::CheckFail, true) => Ok(()),
 		(TestType::CheckFail, false) => {
 			if readme_path.exists() {
 				let mut file = File::open(readme_path)?;
 				let check = verify::check_up2date(input_file, &template, &mut file)?;
 				if check.is_ok() {
-					Ok(Outcome::Failed {
-						msg: Some("Expected check to fail, but it passed".into())
-					})
+					Err("Expected check to fail, but it passed".into())
 				} else {
 					let mut stderr = Vec::new();
 					check.print_to("README.md", &mut stderr).unwrap();
 					let stderr = sanitize_stderr(stderr)?;
 
-					Ok(if stderr_path.exists() {
+					if stderr_path.exists() {
 						let expected = fs::read_to_string(&stderr_path)?;
 						assert_eq!(expected, stderr);
-						Outcome::Passed
+						Ok(())
 					} else if !stderr.trim().is_empty() {
 						fs::write(&stderr_path, stderr.as_bytes())?;
-						Outcome::Ignored
+						Err("WIP".into())
 					} else {
-						Outcome::Failed {
-							msg: Some("Missing error message".into())
-						}
-					})
+						Err("Missing error message".into())
+					}
 				}
 			} else {
-				Ok(Outcome::Failed {
-					msg: Some("Missing README.md file to check against".into())
-				})
+				Err("Missing README.md file to check against".into())
 			}
 		},
 
 		// outcome mismatch
-		(TestType::ReadmePass, true) => bail!("Expected test to pass, but it failed"),
-		(TestType::CheckPass, true) => bail!("Expected check to pass, but it failed"),
-		(TestType::ReadmeFail, false) => bail!("Expected test to fail, but it passed")
+		(TestType::ReadmePass, true) => {
+			Err("Expected test to pass, but it failed".into())
+		},
+		(TestType::CheckPass, true) => {
+			Err("Expected check to pass, but it failed".into())
+		},
+		(TestType::ReadmeFail, false) => {
+			Err("Expected test to fail, but it passed".into())
+		},
 	}
 }
 
 fn add_tests_from_dir<P, I>(
-	tests: &mut Vec<Test<TestData>>,
+	tests: &mut Vec<Trial>,
 	path: P,
 	test_types: I,
 	recursive: bool
@@ -173,16 +168,19 @@ where
 				.unwrap_or(false)
 		{
 			for test_type in test_types {
-				tests.push(Test {
-					name: format!("{} ({test_type:?})", path.display()),
-					kind: "".into(),
-					is_ignored: false,
-					is_bench: false,
-					data: TestData {
-						manifest_path: path.clone(),
+				let name = format!("{} ({test_type:?})", path.display());
+				let manifest_path = path.clone();
+				tests.push(Trial::test(name, move || {
+					let data = TestData {
+						manifest_path,
 						test_type
+					};
+
+					match catch_unwind(|| run_test(&data)) {
+						Ok(result) => result,
+						Err(_) => Err(Failed::without_message())
 					}
-				});
+				}));
 			}
 		}
 	}
@@ -198,16 +196,5 @@ fn main() -> anyhow::Result<()> {
 	add_tests_from_dir(&mut tests, "tests/fail", [ReadmeFail], true)?;
 	add_tests_from_dir(&mut tests, "tests/check", [CheckFail], true)?;
 
-	run_tests(&args, tests, |test| {
-		match catch_unwind(|| run_test(&test.data)) {
-			Ok(result) => match result {
-				Ok(outcome) => outcome,
-				Err(err) => Outcome::Failed {
-					msg: Some(format!("{err:?}"))
-				}
-			},
-			Err(_) => Outcome::Failed { msg: None }
-		}
-	})
-	.exit();
+	libtest::run(&args, tests).exit()
 }
