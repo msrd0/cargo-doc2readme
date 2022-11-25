@@ -1,5 +1,6 @@
 //! blah blah
-//! test [`foo()`] test
+//! [`foo()`]
 //! blah blah
-/// do nothing
+
+#[cfg(feature = "f")]
 pub fn foo(){}
