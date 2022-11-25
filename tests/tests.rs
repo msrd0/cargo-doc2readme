@@ -44,7 +44,8 @@ enum TestType {
 
 struct TestData {
 	manifest_path: PathBuf,
-	test_type: TestType
+	test_type: TestType,
+	config: TestConfig
 }
 
 fn sanitize_stderr(stderr: Vec<u8>) -> anyhow::Result<String> {
@@ -64,9 +65,9 @@ fn run_test(data: &TestData) -> Result<(), Failed> {
 		false,
 		false,
 		template_path,
-		None,
-		false,
-		false
+		data.config.features.clone(),
+		data.config.no_default_features,
+		data.config.all_features
 	);
 
 	let mut stderr = Vec::new();
@@ -217,7 +218,8 @@ where
 				tests.push(Trial::test(name, move || {
 					let data = TestData {
 						manifest_path,
-						test_type
+						test_type,
+						config: test_config
 					};
 
 					match catch_unwind(|| run_test(&data)) {
