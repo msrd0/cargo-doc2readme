@@ -15,9 +15,12 @@ use std::{
 };
 
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TestConfig {
 	/// test need required nightly rust to run
 	nightly: bool,
+	#[serde(default)]
+	expand_macros: bool,
 	features: Option<String>,
 	#[serde(default)]
 	all_features: bool,
@@ -63,7 +66,7 @@ fn run_test(data: &TestData) -> Result<(), Failed> {
 	let (input_file, template, diagnostic) = read_input(
 		Some(manifest_path),
 		false,
-		false,
+		data.config.expand_macros,
 		template_path,
 		data.config.features.clone(),
 		data.config.no_default_features,
