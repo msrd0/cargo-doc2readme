@@ -178,7 +178,7 @@ fn main() -> ExitCode {
 		}
 		if args.all_features {
 			diag.warn(
-				"--all-features option has no effect without the --expand-marcos flag"
+				"--all-features flag has no effect without the --expand-macros flag"
 			)
 		}
 		diag.print().unwrap();
