@@ -17,7 +17,7 @@ use std::{
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TestConfig {
-	/// test need required nightly rust to run
+	/// test requires nightly rust to run
 	nightly: bool,
 	#[serde(default)]
 	expand_macros: bool,
