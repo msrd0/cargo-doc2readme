@@ -115,8 +115,8 @@ struct Args {
 	#[clap(long)]
 	expand_macros: bool,
 
-	/// Space or comma separated list of features to activate
-	#[clap(long)]
+	/// Comma separated list of features to activate
+	#[clap(short = 'F', long)]
 	features: Option<String>,
 
 	/// Activate all available features
