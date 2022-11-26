@@ -171,7 +171,7 @@ fn main() -> ExitCode {
 	if !args.expand_macros {
 		let mut diag = Diagnostic::new(String::new(), String::new());
 		if args.features.is_some() {
-			diag.warn("--features option has no effect without the --expand-marcos flag")
+			diag.warn("--features option has no effect without the --expand-macros flag")
 		}
 		if args.no_default_features {
 			diag.warn("--no_default_features flag has no effect without the --expand-marcos flag")
