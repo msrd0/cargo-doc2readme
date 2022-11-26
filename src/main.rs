@@ -174,7 +174,7 @@ fn main() -> ExitCode {
 			diag.warn("--features option has no effect without the --expand-macros flag")
 		}
 		if args.no_default_features {
-			diag.warn("--no_default_features flag has no effect without the --expand-marcos flag")
+			diag.warn("--no-default-features flag has no effect without the --expand-macros flag")
 		}
 		if args.all_features {
 			diag.warn(
