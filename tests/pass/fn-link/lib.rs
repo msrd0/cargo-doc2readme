@@ -3,4 +3,4 @@
 //! blah blah
 
 /// do nothing
-pub fn foo(){}
+pub fn foo() {}

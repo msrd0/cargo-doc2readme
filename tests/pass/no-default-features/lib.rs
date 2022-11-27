@@ -3,4 +3,4 @@
 //! blah blah
 
 #[cfg(feature = "f")]
-pub fn foo(){}
+pub fn foo() {}
