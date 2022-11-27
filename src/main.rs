@@ -170,7 +170,7 @@ fn main() -> ExitCode {
 		_ => Args::parse()
 	};
 
-	//check input
+	// check input
 	if !args.expand_macros {
 		let mut diag = Diagnostic::new(String::new(), String::new());
 		if args.features.is_some() {
