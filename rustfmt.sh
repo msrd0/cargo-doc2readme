@@ -15,18 +15,23 @@ esac
 
 return=0
 while read file; do
-	echo -e "\e[1m ==> Formatting project $file ...\e[0m"
 	fail=no
 	ok=yes
 
 	# check if this is a test which is allowed to fail
+	# also, ignore anything in the target folder
 	case "$file" in
+		*/target/*)
+			continue
+			;;
 		*/fail/*)
 			fail=yes
 			;;
 		*)
 			;;
 	esac
+
+	echo -e "\e[1m ==> Formatting project $file ...\e[0m"
 
 	# check that the project compiles (unless fail) without modifying the lock file
 	cargo check --manifest-path "$file" --locked || ok=no
