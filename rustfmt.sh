@@ -1,4 +1,4 @@
-#!/bin/busybox ash
+#!/bin/bash
 set -euo pipefail
 
 cargo=${CARGO:-cargo}
