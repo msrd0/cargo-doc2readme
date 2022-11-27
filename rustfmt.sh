@@ -15,6 +15,7 @@ esac
 
 return=0
 while read file; do
+	test=no
 	fail=no
 	ok=yes
 
@@ -26,6 +27,10 @@ while read file; do
 			;;
 		*/fail/*)
 			fail=yes
+			test=yes
+			;;
+		*/tests/*)
+			test=yes
 			;;
 		*)
 			;;
@@ -34,11 +39,12 @@ while read file; do
 	echo -e "\e[1m ==> Formatting project $file ...\e[0m"
 
 	# check that the project compiles (unless fail) without modifying the lock file
-	cargo check --manifest-path "$file" --locked || ok=no
-	echo "fail=$fail ok=$ok"
-	if [ "$fail" == "yes" ] && [ "$ok" == "no" ] && ! cargo check --manifest-path "$file" &>/dev/null; then
-		echo -e "\e[1;33m  -> Ignored\e[0m"
-		continue
+	if [ "$test" == "yes" ]; then
+		cargo check --manifest-path "$file" --locked || ok=no
+		if [ "$fail" == "yes" ] && [ "$ok" == "no" ] && ! cargo check --manifest-path "$file" &>/dev/null; then
+			echo -e "\e[1;33m  -> Ignored\e[0m"
+			continue
+		fi
 	fi
 
 	# run rustfmt with the provided flags
