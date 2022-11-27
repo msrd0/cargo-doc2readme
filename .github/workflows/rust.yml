@@ -7,31 +7,46 @@ on:
   release:
     types: [created]
 
+env:
+  RUST_BACKTRACE: "1"
+  RUST_LOG: "info"
+  # speed up build by using clang/lld
+  CC: "clang-14"
+  CXX: "clang++-14"
+  LD: "clang-14"
+  LDFLAGS: "-fuse-ld=lld-14"
+  RUSTFLAGS: "-C linker=clang-14 -C link-arg=-fuse-ld=lld-14"
+
 jobs:
   test:
+    strategy:
+      fail-fast: false
+      matrix:
+        rust:
+          - toolchain: "stable"
+          - toolchain: "nightly"
+    name: "Test (Rust ${{matrix.rust.toolchain}})"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "${{matrix.rust.toolchain}}"
+        id: "rust-toolchain"
       
-      - name: Get Rust Version
-        id: rust-version
-        run: echo "::set-output name=version::$(cargo -V | head -n1 | awk '{print $2}')"
       - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/git
             ~/.cargo/registry
             target
-          key: ${{ runner.os }}-rust-${{ steps.rust-version.outputs.version }}
+          key: "${{runner.os}} Rust ${{steps.rust-toolchain.outputs.cachekey}}"
       
-      - run: |
-          cargo test
+      - run: cargo test
+      - name: cargo run
+        run: |
           cargo run -- --bin
           git diff --exit-code README.md
-        env:
-          RUST_BACKTRACE: 1
-          RUST_LOG: info
   
   rustfmt:
     runs-on: ubuntu-latest
