@@ -105,25 +105,28 @@ struct Args {
 	#[clap(short, long, default_value = "README.md")]
 	out: PathBuf,
 
-	/// Template File. This is processed by minijinja. Look at the source code for cargo-doc2readme for
-	/// an example.
+	/// Template File. This is processed by minijinja. Look at the source code for
+	/// cargo-doc2readme for an example.
 	#[clap(short, long, default_value = "README.j2")]
 	template: PathBuf,
 
-	/// Use nightly rustc to expand macros prior to reading the source. This is necessary if you
-	/// use function-like macros in doc attributes, as introduced in Rust 1.54.
+	/// Use nightly rustc to expand macros prior to reading the source. This is necessary
+	/// if you use function-like macros in doc attributes, as introduced in Rust 1.54.
 	#[clap(long)]
 	expand_macros: bool,
 
-	/// Comma separated list of features to activate
+	/// Space or comma separated list of features to activate. This will be ignored unless
+	/// `--expand-macros` is enabled, in which case it is being passed to cargo.
 	#[clap(short = 'F', long)]
 	features: Option<String>,
 
-	/// Activate all available features
+	/// Activate all available features. This will be ignored unless `--expand-macros` is
+	/// enabled, in which case it is being passed to cargo.
 	#[clap(long)]
 	all_features: bool,
 
-	/// Do not activate the `default` feature
+	/// Do not activate the `default` feature. This will be ignored unless
+	/// `--expand-macros` is enabled, in which case it is being passed to cargo.
 	#[clap(long)]
 	no_default_features: bool,
 
