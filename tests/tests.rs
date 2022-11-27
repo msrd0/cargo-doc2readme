@@ -6,11 +6,27 @@ use cargo_doc2readme::{output, read_input, verify};
 use lazy_regex::regex_replace_all;
 use libtest::{Arguments, Failed, Trial};
 use pretty_assertions::assert_eq;
+use serde::Deserialize;
 use std::{
 	fs::{self, File},
+	io,
 	panic::catch_unwind,
 	path::{Path, PathBuf}
 };
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TestConfig {
+	/// test requires nightly rust to run
+	nightly: bool,
+	#[serde(default)]
+	expand_macros: bool,
+	features: Option<String>,
+	#[serde(default)]
+	all_features: bool,
+	#[serde(default)]
+	no_default_features: bool
+}
 
 #[derive(Clone, Copy, Debug)]
 enum TestType {
@@ -31,7 +47,8 @@ enum TestType {
 
 struct TestData {
 	manifest_path: PathBuf,
-	test_type: TestType
+	test_type: TestType,
+	config: TestConfig
 }
 
 fn sanitize_stderr(stderr: Vec<u8>) -> anyhow::Result<String> {
@@ -46,8 +63,15 @@ fn run_test(data: &TestData) -> Result<(), Failed> {
 	let readme_path = parent.join("README.md");
 	let stderr_path = parent.join("stderr.log");
 
-	let (input_file, template, diagnostic) =
-		read_input(Some(manifest_path), false, false, template_path);
+	let (input_file, template, diagnostic) = read_input(
+		Some(manifest_path),
+		false,
+		data.config.expand_macros,
+		template_path,
+		data.config.features.clone(),
+		data.config.no_default_features,
+		data.config.all_features
+	);
 
 	let mut stderr = Vec::new();
 	diagnostic.print_to(&mut stderr).unwrap();
@@ -168,12 +192,36 @@ where
 				.unwrap_or(false)
 		{
 			for test_type in test_types {
+				// load test config
+				let test_config_path = path.parent().unwrap().join("Config.toml");
+				let test_config = fs::read_to_string(&test_config_path);
+				let test_config = match test_config {
+					Err(err) => {
+						if err.kind() == io::ErrorKind::NotFound {
+							None
+						} else {
+							panic!("{}: {}", test_config_path.display(), err);
+						}
+					},
+					Ok(value) => Some(value)
+				};
+				let test_config = if let Some(test_config) = test_config {
+					toml::from_str(&test_config).unwrap()
+				} else {
+					TestConfig::default()
+				};
+
+				if test_config.nightly && !rustversion::cfg!(nightly) {
+					continue;
+				}
+
 				let name = format!("{} ({test_type:?})", path.display());
 				let manifest_path = path.clone();
 				tests.push(Trial::test(name, move || {
 					let data = TestData {
 						manifest_path,
-						test_type
+						test_type,
+						config: test_config
 					};
 
 					match catch_unwind(|| run_test(&data)) {

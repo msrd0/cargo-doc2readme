@@ -1,0 +1,3 @@
+nightly = true
+expand_macros = true
+no_default_features = true

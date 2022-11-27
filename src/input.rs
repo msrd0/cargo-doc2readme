@@ -232,7 +232,10 @@ impl CrateCode {
 
 	pub fn read_expansion<P>(
 		manifest_path: Option<P>,
-		target: &Target
+		target: &Target,
+		features: Option<String>,
+		no_default_features: bool,
+		all_features: bool
 	) -> anyhow::Result<CrateCode>
 	where
 		P: AsRef<Path>
@@ -241,6 +244,15 @@ impl CrateCode {
 		cmd.arg("+nightly").arg("rustc");
 		if let Some(manifest_path) = manifest_path {
 			cmd.arg("--manifest-path").arg(manifest_path.as_ref());
+		}
+		if let Some(features) = features {
+			cmd.arg("--features").arg(features);
+		}
+		if no_default_features {
+			cmd.arg("--no-default-features");
+		}
+		if all_features {
+			cmd.arg("--all-features");
 		}
 		if target.is_lib() {
 			cmd.arg("--lib");

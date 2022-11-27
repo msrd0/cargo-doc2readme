@@ -85,7 +85,7 @@
 //!  [cargo-readme]: https://github.com/livioribeiro/cargo-readme
 //!  [docs.rs]: https://docs.rs
 
-use cargo_doc2readme::{output, read_input, verify};
+use cargo_doc2readme::{diagnostic::Diagnostic, output, read_input, verify};
 use clap::Parser;
 use log::{error, info, warn, Level};
 use std::{env, fs::File, io, path::PathBuf, process::ExitCode};
@@ -105,15 +105,30 @@ struct Args {
 	#[clap(short, long, default_value = "README.md")]
 	out: PathBuf,
 
-	/// Template File. This is processed by minijinja. Look at the source code for cargo-doc2readme for
-	/// an example.
+	/// Template File. This is processed by minijinja. Look at the source code for
+	/// cargo-doc2readme for an example.
 	#[clap(short, long, default_value = "README.j2")]
 	template: PathBuf,
 
-	/// Use nightly rustc to expand macros prior to reading the source. This is necessary if you
-	/// use function-like macros in doc attributes, as introduced in Rust 1.54.
+	/// Use nightly rustc to expand macros prior to reading the source. This is necessary
+	/// if you use function-like macros in doc attributes, as introduced in Rust 1.54.
 	#[clap(long)]
 	expand_macros: bool,
+
+	/// Space or comma separated list of features to activate. This will be ignored unless
+	/// `--expand-macros` is enabled, in which case it is being passed to cargo.
+	#[clap(short = 'F', long)]
+	features: Option<String>,
+
+	/// Activate all available features. This will be ignored unless `--expand-macros` is
+	/// enabled, in which case it is being passed to cargo.
+	#[clap(long)]
+	all_features: bool,
+
+	/// Do not activate the `default` feature. This will be ignored unless
+	/// `--expand-macros` is enabled, in which case it is being passed to cargo.
+	#[clap(long)]
+	no_default_features: bool,
 
 	/// Prefer binary targets over library targets for rustdoc source.
 	#[clap(long, conflicts_with = "lib")]
@@ -155,6 +170,23 @@ fn main() -> ExitCode {
 		_ => Args::parse()
 	};
 
+	// check input
+	if !args.expand_macros {
+		let mut diag = Diagnostic::new(String::new(), String::new());
+		if args.features.is_some() {
+			diag.warn("--features option has no effect without the --expand-macros flag")
+		}
+		if args.no_default_features {
+			diag.warn("--no-default-features flag has no effect without the --expand-macros flag")
+		}
+		if args.all_features {
+			diag.warn(
+				"--all-features flag has no effect without the --expand-macros flag"
+			)
+		}
+		diag.print().unwrap();
+	}
+
 	simple_logger::init_with_level(
 		args.verbose.then(|| Level::Debug).unwrap_or(Level::Info)
 	)
@@ -164,7 +196,10 @@ fn main() -> ExitCode {
 		args.manifest_path,
 		args.bin,
 		args.expand_macros,
-		args.template
+		args.template,
+		args.features,
+		args.no_default_features,
+		args.all_features
 	);
 	diagnostics.print().unwrap();
 	exit_on_err!(diagnostics);

@@ -1,0 +1,12 @@
+[package]
+name = "no_default_features"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = ["f"]
+f = []
