@@ -215,7 +215,6 @@ where
 					continue;
 				}
 
-				if !rustversion::cfg!(nightly) {}
 				let name = format!("{} ({test_type:?})", path.display());
 				let manifest_path = path.clone();
 				tests.push(Trial::test(name, move || {
