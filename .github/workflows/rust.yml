@@ -40,7 +40,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
-      - run: cargo fmt --all -- --check
+      - run: ./rustfmt.sh --check
   
   docker:
     runs-on: ubuntu-latest
