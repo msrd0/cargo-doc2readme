@@ -96,55 +96,56 @@ enum Subcommand {
 }
 
 #[derive(Parser)]
+#[command(about, version)]
 struct Args {
 	/// Path to Cargo.toml.
-	#[clap(long)]
+	#[arg(long)]
 	manifest_path: Option<PathBuf>,
 
 	/// Output File.
-	#[clap(short, long, default_value = "README.md")]
+	#[arg(short, long, default_value = "README.md")]
 	out: PathBuf,
 
 	/// Template File. This is processed by minijinja. Look at the source code for
 	/// cargo-doc2readme for an example.
-	#[clap(short, long, default_value = "README.j2")]
+	#[arg(short, long, default_value = "README.j2")]
 	template: PathBuf,
 
 	/// Use nightly rustc to expand macros prior to reading the source. This is necessary
 	/// if you use function-like macros in doc attributes, as introduced in Rust 1.54.
-	#[clap(long)]
+	#[arg(long)]
 	expand_macros: bool,
 
 	/// Space or comma separated list of features to activate. This will be ignored unless
 	/// `--expand-macros` is enabled, in which case it is being passed to cargo.
-	#[clap(short = 'F', long)]
+	#[arg(short = 'F', long)]
 	features: Option<String>,
 
 	/// Activate all available features. This will be ignored unless `--expand-macros` is
 	/// enabled, in which case it is being passed to cargo.
-	#[clap(long)]
+	#[arg(long)]
 	all_features: bool,
 
 	/// Do not activate the `default` feature. This will be ignored unless
 	/// `--expand-macros` is enabled, in which case it is being passed to cargo.
-	#[clap(long)]
+	#[arg(long)]
 	no_default_features: bool,
 
 	/// Prefer binary targets over library targets for rustdoc source.
-	#[clap(long, conflicts_with = "lib")]
+	#[arg(long, conflicts_with = "lib")]
 	bin: bool,
 
 	/// Prefer library targets over binary targets for rustdoc source. This is the default.
-	#[clap(long, conflicts_with = "bin")]
+	#[arg(long, conflicts_with = "bin")]
 	lib: bool,
 
 	/// Verify that the output file is (reasonably) up to date, and fail
 	/// if it needs updating. The output file will not be changed.
-	#[clap(long)]
+	#[arg(long)]
 	check: bool,
 
 	/// Enable verbose output.
-	#[clap(short, long)]
+	#[arg(short, long)]
 	verbose: bool
 }
 
