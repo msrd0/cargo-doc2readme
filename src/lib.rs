@@ -27,10 +27,10 @@ use input::{CrateCode, InputFile, TargetType};
 
 #[doc(hidden)]
 #[allow(clippy::too_many_arguments)] // TODO
-/// Read input. The manifest path, if present, will be passed to `cargo metadata`. If you set
-/// expand_macros to true, the input will be passed to the rust compiler to expand macros. This
-/// will only work on a nightly compiler. The template doesn't have to exist, a default will
-/// be used if it does not exist.
+/// Read input. The manifest path options, if present, will be passed to
+/// `cargo metadata`. If you set expand_macros to true, the input will be passed to the
+/// rust compiler to expand macros. This will only work on a nightly compiler. The
+/// template doesn't have to exist, a default will be used if it does not exist.
 pub fn read_input(
 	manifest_path: Option<PathBuf>,
 	package: Option<String>,
@@ -111,14 +111,17 @@ pub fn read_input(
 		cmd.manifest_path(path);
 	}
 	let metadata = unwrap!(cmd.exec(), "Failed to get cargo metadata");
-	let pkg = match package {
+	let pkg = match package.as_deref() {
 		Some(package) => unwrap!(
 			metadata.packages.iter().find(|pkg| pkg.name == package),
 			"Cannot find requested package"
 		),
 		None => unwrap!(
 			metadata.root_package(),
-			"Missing package. Please make sure there is a package here, workspace roots don't contain any documentation."
+			// TODO this could be a real "help" message from ariadne
+			r#"Missing package. Please make sure there is a package here, workspace roots don't contain any documentation.
+
+Help: You can use --manifest-path and/or -p to specify the package to use."#
 		)
 	};
 
@@ -179,6 +182,7 @@ pub fn read_input(
 		unwrap!(
 			CrateCode::read_expansion(
 				manifest_path.as_ref(),
+				package,
 				target,
 				features,
 				no_default_features,
