@@ -65,6 +65,7 @@ fn run_test(data: &TestData) -> Result<(), Failed> {
 
 	let (input_file, template, diagnostic) = read_input(
 		Some(manifest_path),
+		None,
 		false,
 		data.config.expand_macros,
 		template_path,

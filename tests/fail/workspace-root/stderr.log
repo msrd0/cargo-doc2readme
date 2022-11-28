@@ -1,1 +1,3 @@
 Error: Missing package. Please make sure there is a package here, workspace roots don't contain any documentation.
+
+Help: You can use --manifest-path and/or -p to specify the package to use.
