@@ -102,6 +102,10 @@ struct Args {
 	#[arg(long)]
 	manifest_path: Option<PathBuf>,
 
+	/// Package to read.
+	#[arg(short, long)]
+	package: Option<String>,
+
 	/// Output File.
 	#[arg(short, long, default_value = "README.md")]
 	out: PathBuf,
@@ -195,6 +199,7 @@ fn main() -> ExitCode {
 
 	let (input_file, template, diagnostics) = read_input(
 		args.manifest_path,
+		args.package,
 		args.bin,
 		args.expand_macros,
 		args.template,

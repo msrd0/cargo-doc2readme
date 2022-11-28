@@ -26,12 +26,14 @@ use diagnostic::Diagnostic;
 use input::{CrateCode, InputFile, TargetType};
 
 #[doc(hidden)]
+#[allow(clippy::too_many_arguments)] // TODO
 /// Read input. The manifest path, if present, will be passed to `cargo metadata`. If you set
 /// expand_macros to true, the input will be passed to the rust compiler to expand macros. This
 /// will only work on a nightly compiler. The template doesn't have to exist, a default will
 /// be used if it does not exist.
 pub fn read_input(
 	manifest_path: Option<PathBuf>,
+	package: Option<String>,
 	prefer_bin: bool,
 	expand_macros: bool,
 	template: PathBuf,
@@ -109,10 +111,16 @@ pub fn read_input(
 		cmd.manifest_path(path);
 	}
 	let metadata = unwrap!(cmd.exec(), "Failed to get cargo metadata");
-	let pkg = unwrap!(
-		metadata.root_package(),
-		"Missing package. Please make sure there is a package here, workspace roots don't contain any documentation."
-	);
+	let pkg = match package {
+		Some(package) => unwrap!(
+			metadata.packages.iter().find(|pkg| pkg.name == package),
+			"Cannot find requested package"
+		),
+		None => unwrap!(
+			metadata.root_package(),
+			"Missing package. Please make sure there is a package here, workspace roots don't contain any documentation."
+		)
+	};
 
 	// find the target whose rustdoc comment we'll use.
 	// this uses a library target if exists, otherwise a binary target with the same name as the
