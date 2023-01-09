@@ -1,4 +1,4 @@
-use base64::URL_SAFE_NO_PAD;
+use base64::prelude::*;
 use blake3::Hash;
 use monostate::MustBe;
 use semver::{Version, VersionReq};
@@ -174,12 +174,12 @@ impl DependencyInfo {
 	}
 
 	pub fn decode(data: String) -> anyhow::Result<Self> {
-		let bytes = base64::decode_config(data, URL_SAFE_NO_PAD)?;
+		let bytes = BASE64_URL_SAFE_NO_PAD.decode(data)?;
 		Ok(Self(serde_cbor::from_slice(&bytes)?))
 	}
 
 	pub fn encode(&self) -> String {
-		base64::encode_config(&serde_cbor::to_vec(&self.0).unwrap(), URL_SAFE_NO_PAD)
+		BASE64_URL_SAFE_NO_PAD.encode(&serde_cbor::to_vec(&self.0).unwrap())
 	}
 
 	pub fn check_input(&self, template: &str, rustdoc: &str) -> bool {
@@ -241,7 +241,7 @@ impl DependencyInfo {
 #[cfg(test)]
 mod tests {
 	use super::DependencyInfo;
-	use base64::URL_SAFE_NO_PAD;
+	use base64::prelude::*;
 	use semver::Version;
 
 	const TEMPLATE: &str = include_str!("README.j2");
@@ -305,7 +305,7 @@ mod tests {
 		let encoded = dep_info.encode();
 		println!(
 			"encoded: {}",
-			hex::encode_upper(base64::decode_config(&encoded, URL_SAFE_NO_PAD).unwrap())
+			hex::encode_upper(BASE64_URL_SAFE_NO_PAD.decode(&encoded).unwrap())
 		);
 		let dep_info = DependencyInfo::decode(encoded).unwrap();
 		assert!(dep_info.check_input(TEMPLATE, RUSTDOC));
