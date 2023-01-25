@@ -2,28 +2,47 @@
 #![deny(elided_lifetimes_in_paths)]
 #![forbid(unsafe_code)]
 
-use cargo_doc2readme::{output, read_input, verify};
+use cargo_doc2readme::{
+	diagnostic::Diagnostic, input::InputFile, output, read_input, verify
+};
 use lazy_regex::regex_replace_all;
 use libtest::{Arguments, Failed, Trial};
 use pretty_assertions::assert_eq;
 use serde::Deserialize;
 use std::{
+	borrow::Cow,
 	fs::{self, File},
 	io,
 	panic::catch_unwind,
 	path::{Path, PathBuf}
 };
 
+/// This can be loaded from a `test.toml` in the test directory and alter the behaviour
+/// that is being tested.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TestConfig {
-	/// test requires nightly rust to run
+	/// Test requires nightly Rust.
+	#[serde(default)]
 	nightly: bool,
+
+	/// Test requires that diagnostics match the content of `stderr.log`.
+	#[serde(default)]
+	stderr: bool,
+
+	/// Test as if `--expand-macros` was passed.
 	#[serde(default)]
 	expand_macros: bool,
+
+	/// Test with these features enabled. Ignored unless combined with `--expand-macros`.
 	features: Option<String>,
+
+	/// Test with all features enabled. Ignored unless combined with `--expand-macros`.
 	#[serde(default)]
 	all_features: bool,
+
+	/// Test without default feature being enabled. Ignored unless combined with
+	/// `--expand-macros`.
 	#[serde(default)]
 	no_default_features: bool
 }
@@ -56,6 +75,111 @@ fn sanitize_stderr(stderr: Vec<u8>) -> anyhow::Result<String> {
 	Ok(regex_replace_all!("\x1B\\[[^m]+m", &stderr, |_| "").into_owned())
 }
 
+struct TestRun<'a> {
+	data: &'a TestData,
+
+	manifest_path: PathBuf,
+	template_path: PathBuf,
+	readme_path: PathBuf,
+	stderr_path: PathBuf,
+
+	input_file: InputFile,
+	template: Cow<'static, str>,
+	diagnostic: Diagnostic
+}
+
+impl<'a> TestRun<'a> {
+	/// Read the input for this test.
+	fn init(data: &'a TestData) -> Self {
+		let manifest_path = data.manifest_path.clone();
+		let parent = manifest_path.parent().unwrap();
+		let template_path = parent.join("README.j2");
+		let readme_path = parent.join("README.md");
+		let stderr_path = parent.join("stderr.log");
+
+		let (input_file, template, diagnostic) = read_input(
+			Some(&manifest_path),
+			None,
+			false,
+			data.config.expand_macros,
+			&template_path,
+			data.config.features.clone(),
+			data.config.no_default_features,
+			data.config.all_features
+		);
+
+		Self {
+			data,
+			manifest_path,
+			template_path,
+			readme_path,
+			stderr_path,
+			input_file,
+			template,
+			diagnostic
+		}
+	}
+
+	fn check_stderr(&self) -> Result<(), Failed> {
+		let mut stderr = Vec::new();
+		self.diagnostic.print_to(&mut stderr).unwrap();
+		let stderr = sanitize_stderr(stderr)?;
+
+		if self.stderr_path.exists() {
+			let expected = fs::read_to_string(&self.stderr_path)?;
+			assert_eq!(expected, stderr);
+			Ok(())
+		} else if !stderr.trim().is_empty() {
+			fs::write(&self.stderr_path, stderr.as_bytes())?;
+			Err("WIP".into())
+		} else {
+			Err("Missing diagnostics".into())
+		}
+	}
+
+	/// Run this to check if the generated readme (and diagnostics) match the expected
+	/// results.
+	fn check_readme_pass(self) -> Result<(), Failed> {
+		if self.diagnostic.is_fail() {
+			return Err("Expected test to pass, but it failed".into());
+		}
+
+		if self.data.config.stderr {
+			self.check_stderr()?;
+		}
+
+		let mut actual = Vec::<u8>::new();
+		output::emit(self.input_file, &self.template, &mut actual)?;
+
+		if self.readme_path.exists() {
+			let actual = String::from_utf8(actual)?;
+			let expected = fs::read_to_string(&self.readme_path)?;
+			assert_eq!(expected, actual);
+		} else {
+			fs::write(&self.readme_path, &actual)?;
+			return Err("WIP".into());
+		}
+
+		Ok(())
+	}
+
+	fn check_readme_fail(self) -> Result<(), Failed> {
+		if !self.diagnostic.is_fail() {
+			return Err("Expected test to fail, but it passed".into());
+		}
+
+		if self.data.config.stderr {
+			self.check_stderr()?;
+		} else {
+			println!(
+				"[WARN] {} has no diagnostic check",
+				self.readme_path.display()
+			);
+		}
+		Ok(())
+	}
+}
+
 fn run_test(data: &TestData) -> Result<(), Failed> {
 	let manifest_path = data.manifest_path.clone();
 	let parent = manifest_path.parent().unwrap();
@@ -74,9 +198,15 @@ fn run_test(data: &TestData) -> Result<(), Failed> {
 		data.config.all_features
 	);
 
-	let mut stderr = Vec::new();
-	diagnostic.print_to(&mut stderr).unwrap();
-	let stderr = sanitize_stderr(stderr)?;
+	let stderr = if data.config.stderr {
+		let mut stderr = Vec::new();
+		diagnostic.print_to(&mut stderr).unwrap();
+		sanitize_stderr(stderr)?
+	} else {
+		// leaving stderr empty means we won't check it unless stderr.log exists
+		// this could be improved but works for now
+		String::new()
+	};
 
 	// The program output should always match, no matter if we pass or fail.
 	let fail_outcome = match data.test_type {
