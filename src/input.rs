@@ -3,6 +3,8 @@ use anyhow::{bail, Context};
 use cargo_metadata::{Edition, Metadata, Package, Target};
 use either::Either;
 use log::{debug, info};
+use proc_macro2::{TokenStream, TokenTree};
+use quote::ToTokens as _;
 use semver::{Comparator, Op, Version, VersionReq};
 use serde::Serialize;
 use std::{
@@ -14,7 +16,9 @@ use std::{
 	process::{Command, Output}
 };
 use syn::{
-	Attribute, Ident, Item, ItemMacro, ItemUse, Lit, LitStr, Meta, UsePath, UseTree,
+	parse::{Parse, ParseStream},
+	spanned::Spanned as _,
+	Attribute, Ident, Item, ItemMacro, ItemUse, LitStr, Macro, Token, UsePath, UseTree,
 	Visibility
 };
 
@@ -372,14 +376,7 @@ pub fn read_code(
 		}
 	};
 
-	let rustdoc = match read_rustdoc_from_file(&file) {
-		Ok(rustdoc) => rustdoc,
-		Err(err) => {
-			diagnostics.syntax_error(err);
-			String::new()
-		}
-	};
-
+	let rustdoc = read_rustdoc_from_file(&file, diagnostics);
 	let dependencies = resolve_dependencies(metadata, pkg, diagnostics);
 	let scope = read_scope_from_file(pkg, &file, diagnostics);
 
@@ -395,30 +392,91 @@ pub fn read_code(
 	}
 }
 
-fn read_rustdoc_from_file(file: &syn::File) -> syn::Result<String> {
+fn read_rustdoc_from_file(file: &syn::File, diagnostics: &mut Diagnostic) -> String {
 	let mut doc = String::new();
 	for attr in &file.attrs {
 		if attr.path.is_ident("doc") {
-			if let Some(str) = parse_doc_attr(attr)? {
-				// always push a newline: unindent ignores the first line
-				doc.push('\n');
-				doc.push_str(&str.value());
+			match parse_doc_attr(attr, diagnostics) {
+				Ok(Some(str)) => {
+					doc.push('\n');
+					doc.push_str(&str.value());
+				},
+				Ok(None) => {},
+				Err(err) => {
+					diagnostics.syntax_error(err);
+				}
 			}
+		} else if attr.path.is_ident("cfg_attr") {
+			parse_cfg_attr(attr, diagnostics);
 		}
 	}
-	Ok(doc)
+	doc
 }
 
-fn parse_doc_attr(input: &Attribute) -> syn::Result<Option<LitStr>> {
-	input.parse_meta().and_then(|meta| {
-		Ok(match meta {
-			Meta::NameValue(kv) => Some(match kv.lit {
-				Lit::Str(str) => str,
-				lit => return Err(syn::Error::new(lit.span(), "Expected string literal"))
-			}),
-			_ => None
-		})
-	})
+/// Parse a `#[doc = ...]` attribute. Returns a string if possible, a warning if it
+/// encounters an unexpanded macro or an error if it finds something else.
+fn parse_doc_attr(
+	input: &Attribute,
+	diagnostics: &mut Diagnostic
+) -> syn::Result<Option<LitStr>> {
+	enum LitOrMacro {
+		Lit(LitStr),
+		Macro(Macro)
+	}
+
+	impl Parse for LitOrMacro {
+		fn parse(input: ParseStream) -> syn::Result<Self> {
+			let _: Token![=] = input.parse()?;
+			Ok(if input.peek(LitStr) {
+				Self::Lit(input.parse()?)
+			} else {
+				Self::Macro(input.parse()?)
+			})
+		}
+	}
+
+	match syn::parse2(input.tokens.clone())? {
+		LitOrMacro::Lit(lit) => Ok(Some(lit)),
+		LitOrMacro::Macro(makro) => {
+			diagnostics.warn_macro_not_expanded(makro.span());
+			Ok(None)
+		}
+	}
+}
+
+/// Parse a `#[cfg_attr(..., ...)]` attribute. Returns a warning if it contains a doc
+/// attribute.
+fn parse_cfg_attr(input: &Attribute, diagnostics: &mut Diagnostic) {
+	struct CfgAttr;
+
+	impl Parse for CfgAttr {
+		fn parse(input: ParseStream) -> syn::Result<Self> {
+			let content;
+			syn::parenthesized!(content in input);
+
+			// skip to the 2nd argument
+			while !content.peek(Token![,]) {
+				let _: TokenTree = content.parse()?;
+			}
+			let _: Token![,] = content.parse()?;
+
+			let path: syn::Path = content.parse()?;
+			if !path.is_ident("doc") {
+				return Err(syn::Error::new(
+					path.span(),
+					format!("Expected `doc`, found `{}`", path.into_token_stream())
+				));
+			}
+
+			let _: Token![=] = content.parse()?;
+			let _: TokenStream = content.parse()?;
+			Ok(CfgAttr)
+		}
+	}
+
+	if syn::parse2::<CfgAttr>(input.tokens.clone()).is_ok() {
+		diagnostics.warn_macro_not_expanded(input.span());
+	}
 }
 
 fn sanitize_crate_name<T: AsRef<str>>(name: T) -> String {

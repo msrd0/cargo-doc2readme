@@ -1,0 +1,9 @@
+Warning: Macro not expanded
+   ╭─[lib.rs:1:1]
+   │
+ 1 │ #![cfg_attr(all(), doc = "Hello World!")]
+   · ────────────────────┬────────────────────  
+   ·                     ╰────────────────────── This macro was not expanded
+   · 
+   · Help: You can use `--expand-macros` on a nightly Rust toolchain to expand macros.
+───╯
