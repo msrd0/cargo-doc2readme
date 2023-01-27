@@ -78,8 +78,6 @@ fn sanitize_stderr(stderr: Vec<u8>) -> anyhow::Result<String> {
 struct TestRun<'a> {
 	data: &'a TestData,
 
-	manifest_path: PathBuf,
-	template_path: PathBuf,
 	readme_path: PathBuf,
 	stderr_path: PathBuf,
 
@@ -110,8 +108,6 @@ impl<'a> TestRun<'a> {
 
 		Self {
 			data,
-			manifest_path,
-			template_path,
 			readme_path,
 			stderr_path,
 			input_file,
@@ -178,92 +174,31 @@ impl<'a> TestRun<'a> {
 		}
 		Ok(())
 	}
-}
 
-fn run_test(data: &TestData) -> Result<(), Failed> {
-	let manifest_path = data.manifest_path.clone();
-	let parent = manifest_path.parent().unwrap();
-	let template_path = parent.join("README.j2");
-	let readme_path = parent.join("README.md");
-	let stderr_path = parent.join("stderr.log");
-
-	let (input_file, template, diagnostic) = read_input(
-		Some(manifest_path),
-		None,
-		false,
-		data.config.expand_macros,
-		template_path,
-		data.config.features.clone(),
-		data.config.no_default_features,
-		data.config.all_features
-	);
-
-	let stderr = if data.config.stderr {
-		let mut stderr = Vec::new();
-		diagnostic.print_to(&mut stderr).unwrap();
-		sanitize_stderr(stderr)?
-	} else {
-		// leaving stderr empty means we won't check it unless stderr.log exists
-		// this could be improved but works for now
-		String::new()
-	};
-
-	// The program output should always match, no matter if we pass or fail.
-	let fail_outcome = match data.test_type {
-		TestType::ReadmePass | TestType::ReadmeFail => Some(if stderr_path.exists() {
-			let expected = fs::read_to_string(&stderr_path)?;
-			assert_eq!(expected, stderr);
-			Ok(())
-		} else if !stderr.trim().is_empty() {
-			fs::write(&stderr_path, stderr.as_bytes())?;
-			Err("WIP".into())
-		} else {
-			Err("Missing error message".into())
-		}),
-		TestType::CheckPass | TestType::CheckFail => None
-	};
-
-	match (data.test_type, diagnostic.is_fail()) {
-		// when passing, also check the readme
-		(TestType::ReadmePass, false) => {
-			let mut actual = Vec::<u8>::new();
-			output::emit(input_file, &template, &mut actual)?;
-
-			if readme_path.exists() {
-				let actual = String::from_utf8(actual)?;
-				let expected = fs::read_to_string(&readme_path)?;
-				assert_eq!(expected, actual);
+	fn check_check_pass(self) -> Result<(), Failed> {
+		if self.diagnostic.is_fail() {
+			return Err("Expected check to pass, but it failed".into());
+		}
+		if self.readme_path.exists() {
+			let mut file = File::open(self.readme_path)?;
+			let check =
+				verify::check_up2date(self.input_file, &self.template, &mut file)?;
+			if check.is_ok() {
 				Ok(())
 			} else {
-				fs::write(&readme_path, &actual)?;
-				Err("WIP".into())
+				Err("Expected check to pass, but it failed".into())
 			}
-		},
+		} else {
+			Err("WIP".into())
+		}
+	}
 
-		// when failing, no readme check is required
-		(TestType::ReadmeFail, true) => fail_outcome.unwrap(),
-
-		// expect check to pass
-		(TestType::CheckPass, false) => {
-			if readme_path.exists() {
-				let mut file = File::open(readme_path)?;
-				let check = verify::check_up2date(input_file, &template, &mut file)?;
-				if check.is_ok() {
-					Ok(())
-				} else {
-					Err("Expected check to pass, but it failed".into())
-				}
-			} else {
-				Err("WIP".into())
-			}
-		},
-
-		// expect check to fail
-		(TestType::CheckFail, true) => Ok(()),
-		(TestType::CheckFail, false) => {
-			if readme_path.exists() {
-				let mut file = File::open(readme_path)?;
-				let check = verify::check_up2date(input_file, &template, &mut file)?;
+	fn check_check_fail(self) -> Result<(), Failed> {
+		if !self.diagnostic.is_fail() {
+			return if self.readme_path.exists() {
+				let mut file = File::open(self.readme_path)?;
+				let check =
+					verify::check_up2date(self.input_file, &self.template, &mut file)?;
 				if check.is_ok() {
 					Err("Expected check to fail, but it passed".into())
 				} else {
@@ -271,12 +206,12 @@ fn run_test(data: &TestData) -> Result<(), Failed> {
 					check.print_to("README.md", &mut stderr).unwrap();
 					let stderr = sanitize_stderr(stderr)?;
 
-					if stderr_path.exists() {
-						let expected = fs::read_to_string(&stderr_path)?;
+					if self.stderr_path.exists() {
+						let expected = fs::read_to_string(&self.stderr_path)?;
 						assert_eq!(expected, stderr);
 						Ok(())
 					} else if !stderr.trim().is_empty() {
-						fs::write(&stderr_path, stderr.as_bytes())?;
+						fs::write(&self.stderr_path, stderr.as_bytes())?;
 						Err("WIP".into())
 					} else {
 						Err("Missing error message".into())
@@ -284,19 +219,23 @@ fn run_test(data: &TestData) -> Result<(), Failed> {
 				}
 			} else {
 				Err("Missing README.md file to check against".into())
-			}
-		},
+			};
+		}
 
-		// outcome mismatch
-		(TestType::ReadmePass, true) => {
-			Err("Expected test to pass, but it failed".into())
-		},
-		(TestType::CheckPass, true) => {
-			Err("Expected check to pass, but it failed".into())
-		},
-		(TestType::ReadmeFail, false) => {
-			Err("Expected test to fail, but it passed".into())
-		},
+		if self.data.config.stderr {
+			self.check_stderr()?;
+		}
+		Ok(())
+	}
+}
+
+fn run_test(data: &TestData) -> Result<(), Failed> {
+	let test = TestRun::init(data);
+	match data.test_type {
+		TestType::ReadmePass => test.check_readme_pass(),
+		TestType::ReadmeFail => test.check_readme_fail(),
+		TestType::CheckPass => test.check_check_pass(),
+		TestType::CheckFail => test.check_check_fail()
 	}
 }
 
