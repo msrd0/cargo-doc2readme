@@ -731,7 +731,9 @@ fn read_scope_from_file(
 
 fn is_prelude_import(item_use: &ItemUse) -> bool {
 	match &item_use.tree {
-		UseTree::Path(UsePath { ident, tree, .. }) if ident == "std" => {
+		UseTree::Path(UsePath { ident, tree, .. })
+			if ident == "std" || ident == "core" =>
+		{
 			match tree.as_ref() {
 				UseTree::Path(UsePath { ident, .. }) => ident == "prelude",
 				_ => false
