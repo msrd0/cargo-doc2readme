@@ -1,0 +1,11 @@
+[package]
+name = "doc-cfg-attr-warning"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[lib]
+path = "lib.rs"
+
+[features]
+f = []

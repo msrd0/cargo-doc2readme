@@ -89,6 +89,18 @@ impl Diagnostic {
 		);
 	}
 
+	/// Warning that says that a macro was not expanded and helps to fix it.
+	pub fn warn_macro_not_expanded(&mut self, span: proc_macro2::Span) {
+		let span = self.offset(span.start()) .. self.offset(span.end());
+		self.reports.push(
+			Report::build(ReportKind::Warning, self.filename.clone(), span.start)
+			.with_message("Macro not expanded")
+			.with_label(Label::new((self.filename.clone(), span)).with_message("This macro was not expanded"))
+			.with_help("You can use `--expand-macros` on a nightly Rust toolchain to expand macros.")
+			.finish()
+		);
+	}
+
 	/// Syntax error with the code span from syn's error.
 	pub fn syntax_error(&mut self, err: syn::Error) {
 		let mut report = Report::build(

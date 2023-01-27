@@ -33,11 +33,12 @@ minijinja = { version = "0.30", features = ["builtins", "debug", "key_interning"
 monostate = "0.1"
 proc-macro2 = { version = "1.0", features = ["span-locations"], default-features = false }
 pulldown-cmark = { version = "0.9", default-features = false }
+quote = "1.0"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_cbor = "0.11.2"
 simple_logger = { version = "4.0", features = ["colors", "stderr"], default-features = false }
-syn = { version = "1.0", features = ["full", "parsing"], default-features = false }
+syn = { version = "1.0", features = ["full", "parsing", "printing"], default-features = false }
 url = "2.2"
 
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
