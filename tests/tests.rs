@@ -134,11 +134,14 @@ impl<'a> TestRun<'a> {
 		}
 	}
 
-	fn check_stderr(&self) -> Result<(), Failed> {
+	fn collect_stderr(&self) -> anyhow::Result<String> {
 		let mut stderr = Vec::new();
 		self.diagnostic.print_to(&mut stderr).unwrap();
-		let stderr = sanitize_stderr(stderr)?;
+		sanitize_stderr(stderr)
+	}
 
+	fn check_stderr(&self) -> Result<(), Failed> {
+		let stderr = self.collect_stderr()?;
 		if self.stderr_path.exists() {
 			let expected = fs::read_to_string(&self.stderr_path)?;
 			assert_eq!(expected, stderr)?;
@@ -155,7 +158,11 @@ impl<'a> TestRun<'a> {
 	/// results.
 	fn check_readme_pass(self) -> Result<(), Failed> {
 		if self.diagnostic.is_fail() {
-			return Err("Expected test to pass, but it failed".into());
+			return Err(format!(
+				"Expected test to pass, but it failed. The error message was:\n\n{}",
+				self.collect_stderr()?
+			)
+			.into());
 		}
 
 		if self.data.config.stderr {
@@ -195,8 +202,13 @@ impl<'a> TestRun<'a> {
 
 	fn check_check_pass(self) -> Result<(), Failed> {
 		if self.diagnostic.is_fail() {
-			return Err("Expected check to pass, but it failed".into());
+			return Err(format!(
+				"Expected test to pass, but it failed. The error message was:\n\n{}",
+				self.collect_stderr()?
+			)
+			.into());
 		}
+
 		if self.readme_path.exists() {
 			let mut file = File::open(self.readme_path)?;
 			let check =
