@@ -4,7 +4,7 @@
 
 use cargo_metadata::{CargoOpt, MetadataCommand, Target};
 use log::{debug, info};
-use std::{borrow::Cow, collections::HashMap, env, fmt::Display, fs, path::Path};
+use std::{borrow::Cow, collections::HashMap, env, fmt::Display, fs, path::PathBuf};
 
 #[doc(hidden)]
 pub mod depinfo;
@@ -31,12 +31,12 @@ use input::{CrateCode, InputFile, TargetType};
 /// `cargo metadata`. If you set expand_macros to true, the input will be passed to the
 /// rust compiler to expand macros. This will only work on a nightly compiler. The
 /// template doesn't have to exist, a default will be used if it does not exist.
-pub fn read_input<MP: AsRef<Path>, TP: AsRef<Path>>(
-	manifest_path: Option<MP>,
+pub fn read_input(
+	manifest_path: Option<PathBuf>,
 	package: Option<String>,
 	prefer_bin: bool,
 	expand_macros: bool,
-	template: TP,
+	template: PathBuf,
 	features: Option<String>,
 	no_default_features: bool,
 	all_features: bool
@@ -99,10 +99,8 @@ pub fn read_input<MP: AsRef<Path>, TP: AsRef<Path>>(
 
 	// get the cargo manifest path
 	let manifest_path = match manifest_path {
-		Some(path) if path.as_ref().is_relative() => {
-			Some(env::current_dir().unwrap().join(path))
-		},
-		Some(path) => Some(path.as_ref().to_owned()),
+		Some(path) if path.is_relative() => Some(env::current_dir().unwrap().join(path)),
+		Some(path) => Some(path),
 		None => None
 	};
 
@@ -167,7 +165,6 @@ Help: You can use --manifest-path and/or -p to specify the package to use."#
 	);
 
 	// resolve the template
-	let template = template.as_ref();
 	let template: Cow<'static, str> = if template.exists() {
 		unwrap!(fs::read_to_string(template), "Failed to read template").into()
 	} else {

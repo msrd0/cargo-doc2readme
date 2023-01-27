@@ -114,11 +114,11 @@ impl<'a> TestRun<'a> {
 		let stderr_path = parent.join("stderr.log");
 
 		let (input_file, template, diagnostic) = read_input(
-			Some(&manifest_path),
+			Some(manifest_path),
 			None,
 			false,
 			data.config.expand_macros,
-			&template_path,
+			template_path,
 			data.config.features.clone(),
 			data.config.no_default_features,
 			data.config.all_features
