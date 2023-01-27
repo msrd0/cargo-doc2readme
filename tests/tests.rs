@@ -7,15 +7,33 @@ use cargo_doc2readme::{
 };
 use lazy_regex::regex_replace_all;
 use libtest::{Arguments, Failed, Trial};
-use pretty_assertions::assert_eq;
+use pretty_assertions::Comparison;
 use serde::Deserialize;
 use std::{
 	borrow::Cow,
+	fmt::Debug,
 	fs::{self, File},
 	io,
 	panic::catch_unwind,
 	path::{Path, PathBuf}
 };
+
+macro_rules! assert_eq {
+	($left:expr, $right:expr) => {{
+		let left = $left;
+		let right = $right;
+		if left == right {
+			Ok(())
+		} else {
+			Err(format!(
+				"assertion failed (`{}` == `{}`):\n{}",
+				stringify!($left),
+				stringify!($right),
+				Comparison::new(&left, &right)
+			))
+		}
+	}};
+}
 
 /// This can be loaded from a `test.toml` in the test directory and alter the behaviour
 /// that is being tested.
@@ -123,7 +141,7 @@ impl<'a> TestRun<'a> {
 
 		if self.stderr_path.exists() {
 			let expected = fs::read_to_string(&self.stderr_path)?;
-			assert_eq!(expected, stderr);
+			assert_eq!(expected, stderr)?;
 			Ok(())
 		} else if !stderr.trim().is_empty() {
 			fs::write(&self.stderr_path, stderr.as_bytes())?;
@@ -150,7 +168,7 @@ impl<'a> TestRun<'a> {
 		if self.readme_path.exists() {
 			let actual = String::from_utf8(actual)?;
 			let expected = fs::read_to_string(&self.readme_path)?;
-			assert_eq!(expected, actual);
+			assert_eq!(expected, actual)?;
 		} else {
 			fs::write(&self.readme_path, &actual)?;
 			return Err("WIP".into());
@@ -208,7 +226,7 @@ impl<'a> TestRun<'a> {
 
 					if self.stderr_path.exists() {
 						let expected = fs::read_to_string(&self.stderr_path)?;
-						assert_eq!(expected, stderr);
+						assert_eq!(expected, stderr)?;
 						Ok(())
 					} else if !stderr.trim().is_empty() {
 						fs::write(&self.stderr_path, stderr.as_bytes())?;
@@ -261,37 +279,38 @@ where
 				.map(|name| name == "Cargo.toml")
 				.unwrap_or(false)
 		{
+			// load test config
+			let test_config_path = path.parent().unwrap().join("test.toml");
+			let test_config = fs::read_to_string(&test_config_path);
+			let test_config = match test_config {
+				Err(err) => {
+					if err.kind() == io::ErrorKind::NotFound {
+						None
+					} else {
+						panic!("{}: {}", test_config_path.display(), err);
+					}
+				},
+				Ok(value) => Some(value)
+			};
+			let test_config = if let Some(test_config) = test_config {
+				toml::from_str(&test_config).unwrap()
+			} else {
+				TestConfig::default()
+			};
+
+			if test_config.nightly && !rustversion::cfg!(nightly) {
+				continue;
+			}
+
 			for test_type in test_types {
-				// load test config
-				let test_config_path = path.parent().unwrap().join("Config.toml");
-				let test_config = fs::read_to_string(&test_config_path);
-				let test_config = match test_config {
-					Err(err) => {
-						if err.kind() == io::ErrorKind::NotFound {
-							None
-						} else {
-							panic!("{}: {}", test_config_path.display(), err);
-						}
-					},
-					Ok(value) => Some(value)
-				};
-				let test_config = if let Some(test_config) = test_config {
-					toml::from_str(&test_config).unwrap()
-				} else {
-					TestConfig::default()
-				};
-
-				if test_config.nightly && !rustversion::cfg!(nightly) {
-					continue;
-				}
-
 				let name = format!("{} ({test_type:?})", path.display());
 				let manifest_path = path.clone();
+				let config = test_config.clone();
 				tests.push(Trial::test(name, move || {
 					let data = TestData {
 						manifest_path,
 						test_type,
-						config: test_config
+						config
 					};
 
 					match catch_unwind(|| run_test(&data)) {
