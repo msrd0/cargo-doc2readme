@@ -1,6 +1,6 @@
 [package]
 name = "cargo-doc2readme"
-version = "0.2.3"
+version = "0.2.4"
 description = "cargo subcommand to create a readme file containing the rustdoc comments from your code"
 authors = ["Dominic <git@msrd0.de>"]
 categories = ["command-line-utilities", "development-tools", "development-tools::cargo-plugins"]
