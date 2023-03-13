@@ -2,8 +2,8 @@ Warning: Macro not expanded
    ╭─[lib.rs:1:10]
    │
  1 │ #![doc = concat!("Hello ", "World!")]
-   ·          ─────────────┬─────────────  
-   ·                       ╰─────────────── This macro was not expanded
-   · 
-   · Help: You can use `--expand-macros` on a nightly Rust toolchain to expand macros.
+   │          ─────────────┬─────────────  
+   │                       ╰─────────────── This macro was not expanded
+   │ 
+   │ Help: You can use `--expand-macros` on a nightly Rust toolchain to expand macros.
 ───╯

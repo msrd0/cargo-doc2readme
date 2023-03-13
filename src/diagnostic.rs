@@ -6,7 +6,7 @@ pub type Span = Range<usize>;
 pub struct Diagnostic {
 	filename: String,
 	code: String,
-	reports: Vec<Report<(String, Span)>>,
+	reports: Vec<Report<'static, (String, Span)>>,
 	fail: bool
 }
 
