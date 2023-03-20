@@ -132,7 +132,7 @@ dependencies = [
  "serde",
  "serde_cbor",
  "simple_logger",
- "syn 1.0.109",
+ "syn 2.0.2",
  "url",
 ]
 

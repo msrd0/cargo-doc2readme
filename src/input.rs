@@ -3,7 +3,7 @@ use anyhow::{bail, Context};
 use cargo_metadata::{Edition, Metadata, Package, Target};
 use either::Either;
 use log::{debug, info};
-use proc_macro2::{TokenStream, TokenTree};
+use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::ToTokens as _;
 use semver::{Comparator, Op, Version, VersionReq};
 use serde::Serialize;
@@ -18,8 +18,8 @@ use std::{
 use syn::{
 	parse::{Parse, ParseStream},
 	spanned::Spanned as _,
-	Attribute, Ident, Item, ItemMacro, ItemUse, LitStr, Macro, Token, UsePath, UseTree,
-	Visibility
+	Expr, ExprLit, Ident, Item, ItemMacro, ItemUse, Lit, LitStr, Macro, Meta, Token,
+	UsePath, UseTree, Visibility
 };
 
 type ScopeScope = HashMap<String, VecDeque<(LinkType, String)>>;
@@ -395,28 +395,34 @@ pub fn read_code(
 fn read_rustdoc_from_file(file: &syn::File, diagnostics: &mut Diagnostic) -> String {
 	let mut doc = String::new();
 	for attr in &file.attrs {
-		if attr.path.is_ident("doc") {
-			match parse_doc_attr(attr, diagnostics) {
-				Ok(Some(str)) => {
-					doc.push('\n');
-					doc.push_str(&str.value());
-				},
-				Ok(None) => {},
-				Err(err) => {
-					diagnostics.syntax_error(err);
+		match &attr.meta {
+			Meta::NameValue(nv) if nv.path.is_ident("doc") => {
+				match parse_doc_attr(&nv.value, diagnostics) {
+					Ok(Some(str)) => {
+						doc.push('\n');
+						doc.push_str(&str.value());
+					},
+					Ok(None) => {},
+					Err(err) => {
+						diagnostics.syntax_error(err);
+					}
 				}
-			}
-		} else if attr.path.is_ident("cfg_attr") {
-			parse_cfg_attr(attr, diagnostics);
+			},
+
+			Meta::List(l) if l.path.is_ident("cfg_attr") => {
+				parse_cfg_attr(l.tokens.clone(), attr.span(), diagnostics);
+			},
+
+			_ => {}
 		}
 	}
 	doc
 }
 
-/// Parse a `#[doc = ...]` attribute. Returns a string if possible, a warning if it
-/// encounters an unexpanded macro or an error if it finds something else.
+/// Parse the expr of a `#[doc = ...]` attribute. Returns a string if possible, a warning
+/// if it encounters an unexpanded macro or an error if it finds something else.
 fn parse_doc_attr(
-	input: &Attribute,
+	expr: &Expr,
 	diagnostics: &mut Diagnostic
 ) -> syn::Result<Option<LitStr>> {
 	enum LitOrMacro {
@@ -435,32 +441,35 @@ fn parse_doc_attr(
 		}
 	}
 
-	match syn::parse2(input.tokens.clone())? {
-		LitOrMacro::Lit(lit) => Ok(Some(lit)),
-		LitOrMacro::Macro(makro) => {
+	match expr {
+		Expr::Lit(ExprLit {
+			lit: Lit::Str(lit), ..
+		}) => Ok(Some(lit.clone())),
+		Expr::Macro(makro) => {
 			diagnostics.warn_macro_not_expanded(makro.span());
 			Ok(None)
-		}
+		},
+		expr => Err(syn::Error::new(
+			expr.span(),
+			"Expected string literal or macro invokation"
+		))
 	}
 }
 
 /// Parse a `#[cfg_attr(..., ...)]` attribute. Returns a warning if it contains a doc
 /// attribute.
-fn parse_cfg_attr(input: &Attribute, diagnostics: &mut Diagnostic) {
+fn parse_cfg_attr(tokens: TokenStream, span: Span, diagnostics: &mut Diagnostic) {
 	struct CfgAttr;
 
 	impl Parse for CfgAttr {
 		fn parse(input: ParseStream) -> syn::Result<Self> {
-			let content;
-			syn::parenthesized!(content in input);
-
 			// skip to the 2nd argument
-			while !content.peek(Token![,]) {
-				let _: TokenTree = content.parse()?;
+			while !input.peek(Token![,]) {
+				let _: TokenTree = input.parse()?;
 			}
-			let _: Token![,] = content.parse()?;
+			let _: Token![,] = input.parse()?;
 
-			let path: syn::Path = content.parse()?;
+			let path: syn::Path = input.parse()?;
 			if !path.is_ident("doc") {
 				return Err(syn::Error::new(
 					path.span(),
@@ -468,14 +477,14 @@ fn parse_cfg_attr(input: &Attribute, diagnostics: &mut Diagnostic) {
 				));
 			}
 
-			let _: Token![=] = content.parse()?;
-			let _: TokenStream = content.parse()?;
+			let _: Token![=] = input.parse()?;
+			let _: TokenStream = input.parse()?;
 			Ok(CfgAttr)
 		}
 	}
 
-	if syn::parse2::<CfgAttr>(input.tokens.clone()).is_ok() {
-		diagnostics.warn_macro_not_expanded(input.span());
+	if syn::parse2::<CfgAttr>(tokens).is_ok() {
+		diagnostics.warn_macro_not_expanded(span);
 	}
 }
 
@@ -646,7 +655,7 @@ fn is_public(vis: &Visibility) -> bool {
 fn is_exported(mac: &ItemMacro) -> bool {
 	mac.attrs
 		.iter()
-		.any(|attr| attr.path.is_ident("macro_export"))
+		.any(|attr| attr.path().is_ident("macro_export"))
 }
 
 fn read_scope_from_file(
@@ -677,7 +686,6 @@ fn read_scope_from_file(
 			Item::Macro(i) if is_exported(i) && i.ident.is_some() => {
 				editor.insert_macro(i.ident.as_ref().unwrap())
 			},
-			Item::Macro2(i) if is_public(&i.vis) => editor.insert_macro(&i.ident),
 			Item::Mod(i) if is_public(&i.vis) => editor.insert(&i.ident, LinkType::Mod),
 			Item::Mod(i) => editor.add_privmod(&i.ident),
 			Item::Static(i) if is_public(&i.vis) => {
