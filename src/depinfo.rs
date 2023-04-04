@@ -179,7 +179,7 @@ impl DependencyInfo {
 	}
 
 	pub fn encode(&self) -> String {
-		BASE64_URL_SAFE_NO_PAD.encode(&serde_cbor::to_vec(&self.0).unwrap())
+		BASE64_URL_SAFE_NO_PAD.encode(serde_cbor::to_vec(&self.0).unwrap())
 	}
 
 	pub fn check_input(&self, template: &str, rustdoc: &str) -> bool {

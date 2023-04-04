@@ -664,7 +664,7 @@ fn read_scope_from_file(
 	diagnostics: &mut Diagnostic
 ) -> Scope {
 	let crate_name = sanitize_crate_name(&pkg.name);
-	let mut scope = Scope::prelude(pkg.edition.clone());
+	let mut scope = Scope::prelude(pkg.edition);
 	let mut editor = ScopeEditor::new(&mut scope, &crate_name, diagnostics);
 
 	for i in &file.items {
