@@ -29,7 +29,7 @@ either = "1.6"
 itertools = "0.10"
 log = "0.4"
 memchr = "2.5"
-minijinja = { version = "0.32", features = ["builtins", "debug", "key_interning", "urlencode"], default-features = false }
+minijinja = { version = "0.33", features = ["builtins", "debug", "key_interning", "urlencode"], default-features = false }
 monostate = "0.1"
 proc-macro2 = { version = "1.0", features = ["span-locations"], default-features = false }
 pulldown-cmark = { version = "0.9", default-features = false }
