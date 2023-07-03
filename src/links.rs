@@ -135,6 +135,7 @@ mod tests {
 					let mut links = super::Links::new("", "");
 					let mut input = crate::input::InputFile {
 						crate_name: "my-crate".into(),
+						crate_version: "0.1.0".into(),
 						target_type: crate::input::TargetType::Lib,
 						repository: None,
 						license: None,
