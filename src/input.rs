@@ -303,6 +303,8 @@ pub enum TargetType {
 pub struct InputFile {
 	/// The name of the crate.
 	pub crate_name: String,
+	/// The version of the crate
+	pub crate_version: String,
 	/// The target type.
 	pub target_type: TargetType,
 	/// The repository url (if specified).
@@ -363,6 +365,7 @@ pub fn read_code(
 	diagnostics: &mut Diagnostic
 ) -> InputFile {
 	let crate_name = pkg.name.clone();
+	let crate_version = format!("{}", pkg.version);
 	let repository = pkg.repository.clone();
 	let license = pkg.license.clone();
 	let rust_version = pkg.rust_version.clone();
@@ -382,6 +385,7 @@ pub fn read_code(
 
 	InputFile {
 		crate_name,
+		crate_version,
 		target_type,
 		repository,
 		license,

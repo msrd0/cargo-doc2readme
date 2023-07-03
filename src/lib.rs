@@ -45,6 +45,7 @@ pub fn read_input(
 	fn fail<T: Display>(msg: T) -> (InputFile, Cow<'static, str>, Diagnostic) {
 		let input = InputFile {
 			crate_name: "N/A".into(),
+			crate_version: "N/A".into(),
 			target_type: TargetType::Lib,
 			repository: None,
 			license: None,

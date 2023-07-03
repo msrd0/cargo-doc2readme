@@ -374,6 +374,8 @@ impl<'a> Readme<'a> {
 struct TemplateContext<'a> {
 	#[serde(rename = "crate")]
 	krate: &'a str,
+	#[serde(rename = "crate_version")]
+	krate_version: &'a str,
 	target: TargetType,
 
 	repository: Option<&'a str>,
@@ -402,6 +404,7 @@ pub fn emit(
 	let repository = input.repository.as_deref();
 	let ctx = TemplateContext {
 		krate: &input.crate_name,
+		krate_version: &input.crate_version,
 		target: input.target_type,
 		repository,
 		repository_host: repository.and_then(|repo| {
