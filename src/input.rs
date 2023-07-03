@@ -304,7 +304,7 @@ pub struct InputFile {
 	/// The name of the crate.
 	pub crate_name: String,
 	/// The version of the crate
-	pub crate_version: String,
+	pub crate_version: Version,
 	/// The target type.
 	pub target_type: TargetType,
 	/// The repository url (if specified).
@@ -365,7 +365,7 @@ pub fn read_code(
 	diagnostics: &mut Diagnostic
 ) -> InputFile {
 	let crate_name = pkg.name.clone();
-	let crate_version = format!("{}", pkg.version);
+	let crate_version = pkg.version.clone();
 	let repository = pkg.repository.clone();
 	let license = pkg.license.clone();
 	let rust_version = pkg.rust_version.clone();
