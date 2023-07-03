@@ -4,6 +4,7 @@
 
 use cargo_metadata::{CargoOpt, MetadataCommand, Target};
 use log::{debug, info};
+use semver::Version;
 use std::{borrow::Cow, collections::HashMap, env, fmt::Display, fs, path::PathBuf};
 
 #[doc(hidden)]
@@ -45,6 +46,7 @@ pub fn read_input(
 	fn fail<T: Display>(msg: T) -> (InputFile, Cow<'static, str>, Diagnostic) {
 		let input = InputFile {
 			crate_name: "N/A".into(),
+			crate_version: Version::new(0, 0, 0),
 			target_type: TargetType::Lib,
 			repository: None,
 			license: None,
