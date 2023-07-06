@@ -31,3 +31,4 @@ git push
 git tag -s -a -m "Version $version" "$version"
 git push --tags
 cargo publish --locked
+xdg-open "https://github.com/msrd0/cargo-doc2readme/releases/new"
