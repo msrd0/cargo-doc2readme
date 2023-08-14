@@ -25,7 +25,7 @@ base64 = "0.21"
 blake3 = "1.4"
 cargo_metadata = "0.15.4"
 clap = { version = "4", features = ["derive", "wrap_help"] }
-either = "1.6"
+either = "1.9"
 itertools = "0.11"
 log = "0.4"
 memchr = "2.5"
