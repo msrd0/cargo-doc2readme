@@ -16,7 +16,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Log In at ghcr.io
         run: echo "${{secrets.GITHUB_TOKEN}}" | docker login ghcr.io -u msrd0 --password-stdin
       - name: Build and Push image to ghcr.io
