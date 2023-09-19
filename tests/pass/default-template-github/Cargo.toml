@@ -1,0 +1,12 @@
+[package]
+name = "default_template_github"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+license = "Unlicense"
+repository = "https://github.com/foo/bar"
+rust-version = "1.56"
+
+[lib]
+path = "lib.rs"
