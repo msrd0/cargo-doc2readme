@@ -312,7 +312,7 @@ pub struct InputFile {
 	/// The license field (if specified).
 	pub license: Option<String>,
 	/// The rust_version field (if specified).
-	pub rust_version: Option<VersionReq>,
+	pub rust_version: Option<Version>,
 	/// The unmodified rustdoc string
 	pub rustdoc: String,
 	/// The crate-level dependencies, mapping the valid identifier in rust code to the (possibly

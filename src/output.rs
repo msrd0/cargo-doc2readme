@@ -6,7 +6,7 @@ use log::debug;
 use pulldown_cmark::{
 	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
 };
-use semver::VersionReq;
+use semver::Version;
 use serde::Serialize;
 use std::{
 	collections::{BTreeMap, VecDeque},
@@ -382,7 +382,7 @@ struct TemplateContext<'a> {
 	repository_host: Option<String>,
 
 	license: Option<&'a str>,
-	rust_version: Option<&'a VersionReq>,
+	rust_version: Option<&'a Version>,
 
 	readme: String,
 	links: String
