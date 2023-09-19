@@ -1,20 +1,20 @@
 {# this is the default template used when the user does not specify one #}
 
-{%- if crate is defined -%}
+{%- if crate -%}
 # {{ crate }}
-	{%- if license is defined %} ![License: {{ license }}](https://img.shields.io/badge/license-{{ license | replace("-", "--") | urlencode }}-blue)
+	{%- if license %} ![License: {{ license }}](https://img.shields.io/badge/license-{{ license | replace("-", "--") | urlencode }}-blue)
 	{%- else %} ![License](https://img.shields.io/crates/l/{{ crate | urlencode }})
 	{%- endif %}
-	{%- if crate is defined %} [![{{ crate }} on crates.io](https://img.shields.io/crates/v/{{ crate | urlencode }})](https://crates.io/crates/{{ crate | urlencode }})
+	{%- if crate %} [![{{ crate }} on crates.io](https://img.shields.io/crates/v/{{ crate | urlencode }})](https://crates.io/crates/{{ crate | urlencode }})
 		{%- if target == "lib" %} [![{{ crate }} on docs.rs](https://docs.rs/{{ crate | urlencode }}/badge.svg)](https://docs.rs/{{ crate | urlencode }})
 		{%- endif %}
 	{%- endif %}
-	{%- if repository is defined %}
+	{%- if repository %}
 		{%- if repository_host == "github.com" %} [![Source Code Repository](https://img.shields.io/badge/Code-On%20GitHub-blue?logo=GitHub)]({{ repository }})
-		{%- elif repository_host is defined %} [![Source Code Repository](https://img.shields.io/badge/Code-On%20{{ repository_host | replace("-", "--") | urlencode }}-blue)]({{ repository }})
+		{%- elif repository_host %} [![Source Code Repository](https://img.shields.io/badge/Code-On%20{{ repository_host | replace("-", "--") | urlencode }}-blue)]({{ repository }})
 		{%- endif %}
 	{%- endif %}
-	{%- if rust_version is defined %} ![Rust Version: {{rust_version}}](https://img.shields.io/badge/rustc-{{ rust_version | urlencode }}-orange.svg)
+	{%- if rust_version %} ![Rust Version: {{rust_version}}](https://img.shields.io/badge/rustc-{{ rust_version | urlencode }}-orange.svg)
 	{%- endif %}
 {%- endif %}
 
