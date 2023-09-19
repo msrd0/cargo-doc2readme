@@ -6,7 +6,7 @@
 FROM ghcr.io/msrd0/abuild-aarch64 AS builder
 
 USER root
-RUN apk add --no-cache cargo curl-dev
+RUN apk add --no-cache cargo
 
 COPY Cargo.toml /src/
 COPY Cargo.lock /src/
@@ -18,5 +18,5 @@ RUN cargo build --release --locked
 # files in the final image
 FROM alpine
 
-RUN apk add --no-cache cargo libcurl
+RUN apk add --no-cache cargo
 COPY --from=builder /src/target/release/cargo-doc2readme /usr/bin/

@@ -4,11 +4,8 @@ ENV RUSTUP_HOME="/usr/local/rust"
 ENV CARGO_HOME="$RUSTUP_HOME/cargo"
 ENV PATH="$PATH:$CARGO_HOME/bin"
 
-# unstable but reduces the amount downloaded significantly
-ENV CARGO_UNSTABLE_SPARSE_REGISTRY=true
-
-RUN apk add --no-cache libcurl gcc musl-dev \
- && apk add --no-cache --virtual .build-deps curl-dev jq rustup \
+RUN apk add --no-cache gcc musl-dev \
+ && apk add --no-cache --virtual .build-deps jq rustup \
  && rustup-init -y --default-toolchain nightly --profile minimal --no-modify-path \
  && cargo install \
       --git https://github.com/msrd0/cargo-doc2readme \
