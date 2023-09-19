@@ -10,7 +10,9 @@
 		{%- endif %}
 	{%- endif %}
 	{%- if repository %}
-		{%- if repository_host == "github.com" %} [![Source Code Repository](https://img.shields.io/badge/Code-On%20GitHub-blue?logo=GitHub)]({{ repository }})
+		{%- if repository_host == "github.com"     %} [![Source Code Repository](https://img.shields.io/badge/Code-On%20GitHub-blue?logo=GitHub)]({{ repository }})
+		{%- elif repository_host == "gitlab.com"   %} [![Source Code Repository](https://img.shields.io/badge/Code-On%20GitLab-blue?logo=GitLab)]({{ repository }})
+		{%- elif repository_host == "codeberg.org" %} [![Source Code Repository](https://img.shields.io/badge/Code-On%20Codeberg-blue?logo=Codeberg)]({{ repository }})
 		{%- elif repository_host %} [![Source Code Repository](https://img.shields.io/badge/Code-On%20{{ repository_host | replace("-", "--") | urlencode }}-blue)]({{ repository }})
 		{%- endif %}
 	{%- endif %}
