@@ -22,7 +22,7 @@ harness = false
 anyhow = "1.0"
 ariadne = "0.3"
 base64 = "0.21"
-blake3 = "1.4"
+blake3 = "1.5"
 cargo_metadata = "0.18"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 either = "1.9"
