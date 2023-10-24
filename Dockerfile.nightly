@@ -4,7 +4,7 @@ ENV RUSTUP_HOME="/usr/local/rust"
 ENV CARGO_HOME="$RUSTUP_HOME/cargo"
 ENV PATH="$PATH:$CARGO_HOME/bin"
 
-RUN apk add --no-cache gcc musl-dev \
+RUN apk add --no-cache gcc libcurl musl-dev \
  && apk add --no-cache --virtual .build-deps jq rustup \
  && rustup-init -y --default-toolchain nightly --profile minimal --no-modify-path \
  && cargo install \
