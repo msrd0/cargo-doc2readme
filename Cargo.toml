@@ -26,7 +26,7 @@ blake3 = "1.5"
 cargo_metadata = "0.18"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 either = "1.9"
-itertools = "0.11"
+itertools = "0.12"
 log = "0.4"
 memchr = "2.6"
 minijinja = { version = "1.0", features = ["builtins", "debug", "key_interning", "urlencode"], default-features = false }
