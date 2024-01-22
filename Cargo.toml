@@ -28,7 +28,7 @@ clap = { version = "4", features = ["derive", "wrap_help"] }
 either = "1.9"
 itertools = "0.12"
 log = "0.4"
-memchr = "2.6"
+memchr = "2.7"
 minijinja = { version = "1.0", features = ["builtins", "debug", "key_interning", "urlencode"], default-features = false }
 monostate = "0.1"
 proc-macro2 = { version = "1.0", features = ["span-locations"], default-features = false }
