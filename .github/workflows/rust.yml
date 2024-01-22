@@ -34,7 +34,7 @@ jobs:
           toolchain: "${{matrix.rust.toolchain}}"
         id: "rust-toolchain"
       
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/git
