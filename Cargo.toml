@@ -32,7 +32,7 @@ memchr = "2.7"
 minijinja = { version = "1.0", features = ["builtins", "debug", "key_interning", "urlencode"], default-features = false }
 monostate = "0.1"
 proc-macro2 = { version = "1.0", features = ["span-locations"], default-features = false }
-pulldown-cmark = { version = "0.9", default-features = false }
+pulldown-cmark = { version = "0.10", default-features = false }
 quote = "1.0"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
