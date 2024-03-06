@@ -4,7 +4,7 @@ use crate::{
 };
 use log::debug;
 use pulldown_cmark::{
-	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
+	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag, TagEnd
 };
 use semver::Version;
 use serde::Serialize;
@@ -161,9 +161,9 @@ impl<'a> Readme<'a> {
 			match ev {
 				Event::Start(tag) => match tag {
 					Tag::Paragraph => Ok(()),
-					Tag::Heading(lvl, ..) => {
+					Tag::Heading { level, .. } => {
 						newline(out, &indent, &mut has_newline)?;
-						for _ in 0 ..= lvl as u8 {
+						for _ in 0 ..= level as u8 {
 							write!(out, "#")?;
 						}
 						write!(out, " ")
@@ -222,23 +222,23 @@ impl<'a> Readme<'a> {
 					Tag::Emphasis => write!(out, "*"),
 					Tag::Strong => write!(out, "**"),
 					Tag::Strikethrough => write!(out, "~~"),
-					Tag::Link(LinkType::Autolink, ..)
-					| Tag::Link(LinkType::Email, ..) => {
+					Tag::Link { link_type: LinkType::Autolink, .. }
+					| Tag::Link { link_type: LinkType::Email, .. } => {
 						write!(out, "<")
 					},
-					Tag::Link(..) => write!(out, "["),
-					Tag::Image(..) => write!(out, "![")
+					Tag::Link { ..} => write!(out, "["),
+					Tag::Image{..} => write!(out, "![")
 				},
 				Event::End(tag) => match tag {
-					Tag::Paragraph | Tag::Heading(..) => {
+					TagEnd::Paragraph | TagEnd::Heading(..) => {
 						newline(out, &indent, &mut has_newline)?;
 						newline(out, &indent, &mut has_newline)
 					},
-					Tag::BlockQuote => {
+					TagEnd::BlockQuote => {
 						indent.pop_back();
 						newline(out, &indent, &mut has_newline)
 					},
-					Tag::CodeBlock(_) => {
+					TagEnd::CodeBlock => {
 						if !has_newline {
 							newline(out, &indent, &mut has_newline)?;
 						}
@@ -246,18 +246,18 @@ impl<'a> Readme<'a> {
 						newline(out, &indent, &mut has_newline)?;
 						newline(out, &indent, &mut has_newline)
 					},
-					Tag::List(_) => {
+					TagEnd::List(_) => {
 						let pop = lists.pop_back();
 						debug_assert!(pop.is_some());
 						newline(out, &indent, &mut has_newline)
 					},
-					Tag::Item => {
+					TagEnd::Item => {
 						indent.pop_back();
 						newline(out, &indent, &mut has_newline)
 					},
-					Tag::FootnoteDefinition(_) => unimplemented!(),
-					Tag::Table(_) => newline(out, &indent, &mut has_newline),
-					Tag::TableHead => {
+					TagEnd::FootnoteDefinition => unimplemented!(),
+					TagEnd::Table => newline(out, &indent, &mut has_newline),
+					TagEnd::TableHead => {
 						newline(out, &indent, &mut has_newline)?;
 						write!(out, "|")?;
 						for a in &alignments {
@@ -271,15 +271,15 @@ impl<'a> Readme<'a> {
 						}
 						newline(out, &indent, &mut has_newline)
 					},
-					Tag::TableRow => newline(out, &indent, &mut has_newline),
-					Tag::TableCell => write!(out, " |"),
-					Tag::Emphasis => write!(out, "*"),
-					Tag::Strong => write!(out, "**"),
-					Tag::Strikethrough => write!(out, "~~"),
-					Tag::Link(_, href, _) if href.starts_with('#') => {
+					TagEnd::TableRow => newline(out, &indent, &mut has_newline),
+					TagEnd::TableCell => write!(out, " |"),
+					TagEnd::Emphasis => write!(out, "*"),
+					TagEnd::Strong => write!(out, "**"),
+					TagEnd::Strikethrough => write!(out, "~~"),
+					TagEnd::Link if href.starts_with('#') => {
 						write!(out, "]({href})")
 					},
-					Tag::Link(ty, href, name) | Tag::Image(ty, href, name) => {
+					Tag::Link | Tag::Image => {
 						let link = format!("__link{link_idx}");
 						link_idx += 1;
 						match ty {
