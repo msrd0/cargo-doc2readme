@@ -1,0 +1,8 @@
+[package]
+name = "code_block_with_hidden_lines"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[lib]
+path = "lib.rs"

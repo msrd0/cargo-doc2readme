@@ -2,14 +2,16 @@ use crate::{
 	input::{InputFile, Scope, TargetType},
 	links::Links
 };
+use itertools::Itertools as _;
 use log::debug;
 use pulldown_cmark::{
-	Alignment, BrokenLink, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag
+	BrokenLink, CodeBlockKind, CowStr, Event, HeadingLevel, LinkType, Options, Parser,
+	Tag, TagEnd
 };
 use semver::Version;
 use serde::Serialize;
 use std::{
-	collections::{BTreeMap, VecDeque},
+	collections::BTreeMap,
 	fmt::{self, Write as _},
 	io
 };
@@ -103,17 +105,168 @@ fn broken_link_callback<'a>(lnk: BrokenLink<'_>) -> Option<(CowStr<'a>, CowStr<'
 	Some(("".into(), lnk.reference.to_string().into()))
 }
 
-fn newline(
-	out: &mut dyn fmt::Write,
-	indent: &VecDeque<&'static str>,
-	has_newline: &mut bool
-) -> fmt::Result {
-	writeln!(out)?;
-	for s in indent {
-		write!(out, "{s}")?;
+fn is_hidden_codeblock_line(line: &str) -> bool {
+	line == "#"
+		|| (line.starts_with('#') && line.chars().nth(1).unwrap_or('a').is_whitespace())
+}
+
+struct EventFilter<'a, I: Iterator<Item = Event<'a>>> {
+	iter: I,
+	links: &'a mut BTreeMap<String, String>,
+
+	in_code_block: bool,
+	link_idx: usize
+}
+
+impl<'a, I: Iterator<Item = Event<'a>>> EventFilter<'a, I> {
+	fn new(iter: I, links: &'a mut BTreeMap<String, String>) -> Self {
+		Self {
+			iter,
+			links,
+
+			in_code_block: false,
+			link_idx: 0
+		}
 	}
-	*has_newline = true;
-	Ok(())
+}
+
+impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
+	type Item = Event<'a>;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		loop {
+			break Some(match self.iter.next()? {
+				Event::Start(tag) => Event::Start(match tag {
+					// we increase headings by 1 level
+					Tag::Heading {
+						level,
+						id,
+						classes,
+						attrs
+					} => {
+						let level = match level {
+							HeadingLevel::H1 => HeadingLevel::H2,
+							HeadingLevel::H2 => HeadingLevel::H3,
+							HeadingLevel::H3 => HeadingLevel::H4,
+							HeadingLevel::H4 => HeadingLevel::H5,
+							_ => HeadingLevel::H6
+						};
+						Tag::Heading {
+							level,
+							id,
+							classes,
+							attrs
+						}
+					},
+
+					// we record codeblocks and adjust their language
+					Tag::CodeBlock(kind) => {
+						debug_assert!(
+							!self.in_code_block,
+							"Recursive codeblocks, wtf???"
+						);
+						self.in_code_block = true;
+						Tag::CodeBlock(CodeBlockKind::Fenced(match kind {
+							CodeBlockKind::Indented => DEFAULT_CODEBLOCK_LANG.into(),
+							CodeBlockKind::Fenced(lang) => {
+								let mut lang: String = (*lang).to_owned();
+								for flag in RUSTDOC_CODEBLOCK_FLAGS {
+									lang = lang.replace(flag, "");
+								}
+								let mut lang: CowStr<'_> = lang.replace(',', "").into();
+								if lang.is_empty() {
+									lang = DEFAULT_CODEBLOCK_LANG.into();
+								}
+								lang
+							}
+						}))
+					},
+
+					Tag::Link {
+						link_type,
+						dest_url,
+						title,
+						id
+					} if dest_url.starts_with('#')
+						|| link_type == LinkType::Autolink
+						|| link_type == LinkType::Email =>
+					{
+						Tag::Link {
+							link_type,
+							dest_url,
+							title,
+							id
+						}
+					},
+					Tag::Link {
+						dest_url,
+						title,
+						id,
+						link_type
+					} => {
+						eprintln!(
+							"Link: dest_url={dest_url:?}, title={title:?}, id={id:?}"
+						);
+						let link = format!("__link{}", self.link_idx);
+						self.link_idx += 1;
+						if !dest_url.is_empty() {
+							self.links.insert(link.clone(), dest_url.to_string());
+						} else if !id.is_empty() {
+							self.links.insert(link.clone(), id.to_string());
+						} else if !title.is_empty() {
+							self.links.insert(link.clone(), title.to_string());
+						} else {
+							break Some(Event::Start(Tag::Link {
+								link_type,
+								dest_url,
+								title,
+								id
+							}));
+						}
+						Tag::Link {
+							// pulldown-cmark-to-cmark does not support outputting
+							// unresolved reference-style links so we have to do
+							// it this stupid way
+							link_type: LinkType::Inline,
+							dest_url: link.into(),
+							title: "".into(),
+							id
+						}
+					},
+
+					// we don't need to modify any other tags
+					tag => tag
+				}),
+
+				Event::End(tag) => Event::End(match tag {
+					// we record when a codeblock ends
+					TagEnd::CodeBlock => {
+						debug_assert!(
+							self.in_code_block,
+							"Ending non-started code block, wtf???"
+						);
+						self.in_code_block = false;
+						TagEnd::CodeBlock
+					},
+					// we don't need to modify any other tags
+					tag => tag
+				}),
+
+				Event::Text(text) if self.in_code_block => {
+					let filtered = text
+						.lines()
+						.filter(|line| !is_hidden_codeblock_line(line))
+						.join("\n");
+					if filtered.is_empty() {
+						continue;
+					}
+					Event::Text(filtered.into())
+				},
+
+				ev => ev
+			});
+		}
+	}
 }
 
 struct Readme<'a> {
@@ -150,191 +303,36 @@ impl<'a> Readme<'a> {
 			Some(&mut broken_link_callback)
 		);
 
-		let mut alignments: Vec<Alignment> = Vec::new();
-		let mut has_newline = true;
-		let mut link_idx: u32 = 0;
-		let mut indent: VecDeque<&'static str> = VecDeque::new();
-		let mut lists: VecDeque<Option<u64>> = VecDeque::new();
+		let options = pulldown_cmark_to_cmark::Options {
+			code_block_token_count: 3,
+			..Default::default()
+		};
+		pulldown_cmark_to_cmark::cmark_with_options(
+			EventFilter::new(parser.into_iter(), &mut self.links),
+			&mut self.readme,
+			options
+		)?;
 
-		let out = &mut self.readme;
-		for ev in parser {
-			match ev {
-				Event::Start(tag) => match tag {
-					Tag::Paragraph => Ok(()),
-					Tag::Heading(lvl, ..) => {
-						newline(out, &indent, &mut has_newline)?;
-						for _ in 0 ..= lvl as u8 {
-							write!(out, "#")?;
-						}
-						write!(out, " ")
-					},
-					Tag::BlockQuote => {
-						newline(out, &indent, &mut has_newline)?;
-						indent.push_back("> ");
-						write!(out, "> ")
-					},
-					Tag::CodeBlock(CodeBlockKind::Indented) => {
-						newline(out, &indent, &mut has_newline)?;
-						write!(out, "```{}", DEFAULT_CODEBLOCK_LANG)?;
-						newline(out, &indent, &mut has_newline)
-					},
-					Tag::CodeBlock(CodeBlockKind::Fenced(lang)) => {
-						// Strip rustdoc code-block flags from the language
-						let mut lang = lang.to_string();
-						for flag in RUSTDOC_CODEBLOCK_FLAGS {
-							lang = lang.replace(flag, "");
-						}
-						lang = lang.replace(',', "");
+		// we need to replace the links generated by pulldown-cmark-to-cmark with
+		// reference-style links
+		let mut i = 0;
+		while i < self.readme.len() {
+			let Some(idx) = self.readme[i ..].find("(__link") else {
+				break;
+			};
+			let idx = idx + i;
+			let Some(idx2) = self.readme[idx ..].find(')') else {
+				break;
+			};
+			let idx2 = idx2 + idx;
+			i = idx2;
 
-						if lang.is_empty() {
-							lang = "rust".to_owned();
-						}
+			self.readme.replace_range(idx ..= idx, "[");
+			self.readme.replace_range(idx2 ..= idx2, "]");
+		}
 
-						newline(out, &indent, &mut has_newline)?;
-						write!(out, "```{lang}")?;
-						newline(out, &indent, &mut has_newline)
-					},
-					Tag::List(start) => {
-						lists.push_back(start);
-						Ok(())
-					},
-					Tag::Item => {
-						if !has_newline {
-							newline(out, &indent, &mut has_newline)?;
-						}
-						indent.push_back("\t");
-						match lists.back_mut().unwrap() {
-							Some(start) => {
-								write!(out, " {start}. ")?;
-								*start += 1;
-								Ok(())
-							},
-							None => write!(out, " - ")
-						}
-					},
-					Tag::FootnoteDefinition(_) => unimplemented!(),
-					Tag::Table(a) => {
-						alignments = a;
-						Ok(())
-					},
-					Tag::TableHead | Tag::TableRow => write!(out, "|"),
-					Tag::TableCell => write!(out, " "),
-					Tag::Emphasis => write!(out, "*"),
-					Tag::Strong => write!(out, "**"),
-					Tag::Strikethrough => write!(out, "~~"),
-					Tag::Link(LinkType::Autolink, ..)
-					| Tag::Link(LinkType::Email, ..) => {
-						write!(out, "<")
-					},
-					Tag::Link(..) => write!(out, "["),
-					Tag::Image(..) => write!(out, "![")
-				},
-				Event::End(tag) => match tag {
-					Tag::Paragraph | Tag::Heading(..) => {
-						newline(out, &indent, &mut has_newline)?;
-						newline(out, &indent, &mut has_newline)
-					},
-					Tag::BlockQuote => {
-						indent.pop_back();
-						newline(out, &indent, &mut has_newline)
-					},
-					Tag::CodeBlock(_) => {
-						if !has_newline {
-							newline(out, &indent, &mut has_newline)?;
-						}
-						write!(out, "```")?;
-						newline(out, &indent, &mut has_newline)?;
-						newline(out, &indent, &mut has_newline)
-					},
-					Tag::List(_) => {
-						let pop = lists.pop_back();
-						debug_assert!(pop.is_some());
-						newline(out, &indent, &mut has_newline)
-					},
-					Tag::Item => {
-						indent.pop_back();
-						newline(out, &indent, &mut has_newline)
-					},
-					Tag::FootnoteDefinition(_) => unimplemented!(),
-					Tag::Table(_) => newline(out, &indent, &mut has_newline),
-					Tag::TableHead => {
-						newline(out, &indent, &mut has_newline)?;
-						write!(out, "|")?;
-						for a in &alignments {
-							match a {
-								Alignment::None => write!(out, " --- "),
-								Alignment::Left => write!(out, ":--- "),
-								Alignment::Center => write!(out, ":---:"),
-								Alignment::Right => write!(out, " ---:")
-							}?;
-							write!(out, "|")?;
-						}
-						newline(out, &indent, &mut has_newline)
-					},
-					Tag::TableRow => newline(out, &indent, &mut has_newline),
-					Tag::TableCell => write!(out, " |"),
-					Tag::Emphasis => write!(out, "*"),
-					Tag::Strong => write!(out, "**"),
-					Tag::Strikethrough => write!(out, "~~"),
-					Tag::Link(_, href, _) if href.starts_with('#') => {
-						write!(out, "]({href})")
-					},
-					Tag::Link(ty, href, name) | Tag::Image(ty, href, name) => {
-						let link = format!("__link{link_idx}");
-						link_idx += 1;
-						match ty {
-							LinkType::Inline
-							| LinkType::Reference
-							| LinkType::Collapsed
-							| LinkType::Shortcut => {
-								self.links.insert(link.clone(), href.to_string());
-								write!(out, "][{link}]")
-							},
-							LinkType::ReferenceUnknown
-							| LinkType::CollapsedUnknown
-							| LinkType::ShortcutUnknown => {
-								self.links.insert(link.clone(), name.to_string());
-								write!(out, "][{link}]")
-							},
-							LinkType::Autolink | LinkType::Email => write!(out, ">")
-						}
-					}
-				},
-				Event::Text(text) => {
-					has_newline = text.ends_with('\n');
-					let mut first_line: bool = true;
-					let mut empty: bool = true;
-					for line in text.lines() {
-						// if a line starts with a sharp ('#'), it has either been parsed as a header,
-						// or is in a code block so should be omitted
-						if line == "#"
-							|| (line.starts_with('#')
-								&& line.chars().nth(1).unwrap_or('a').is_whitespace())
-						{
-							continue;
-						}
-
-						if !first_line {
-							newline(out, &indent, &mut has_newline)?;
-						}
-						first_line = false;
-
-						empty = false;
-						write!(out, "{line}")?;
-					}
-					if has_newline && !empty {
-						newline(out, &indent, &mut has_newline)?;
-					}
-					Ok(())
-				},
-				Event::Code(text) => write!(out, "`{text}`"),
-				Event::Html(text) => write!(out, "{text}"),
-				Event::FootnoteReference(_) => unimplemented!(),
-				Event::SoftBreak => write!(out, " "),
-				Event::HardBreak => write!(out, "<br/>"),
-				Event::Rule => write!(out, "<hr/>"),
-				Event::TaskListMarker(_) => unimplemented!()
-			}?;
+		if !self.readme.ends_with('\n') {
+			self.readme.push('\n');
 		}
 
 		Ok(())

@@ -1,4 +1,3 @@
 # default_template_github ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue) [![default_template_github on crates.io](https://img.shields.io/crates/v/default_template_github)](https://crates.io/crates/default_template_github) [![default_template_github on docs.rs](https://docs.rs/default_template_github/badge.svg)](https://docs.rs/default_template_github) [![Source Code Repository](https://img.shields.io/badge/Code-On%20GitHub-blue?logo=GitHub)](https://github.com/foo/bar) ![Rust Version: 1.56.0](https://img.shields.io/badge/rustc-1.56.0-orange.svg)
 
 An example pretending to be hosted on GitHub.
-
