@@ -4,7 +4,7 @@ use crate::{
 };
 use log::debug;
 use pulldown_cmark::{
-	BrokenLink, CodeBlockKind, CowStr, Event, HeadingLevel, Options, Parser, Tag
+	BrokenLink, CodeBlockKind, CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd
 };
 use semver::Version;
 use serde::Serialize;
@@ -15,6 +15,7 @@ use std::{
 };
 use syn::Path;
 use url::Url;
+use itertools::Itertools as _;
 
 const DEFAULT_CODEBLOCK_LANG: &str = "rust";
 /// List of codeblock flags that rustdoc allows
@@ -103,6 +104,111 @@ fn broken_link_callback<'a>(lnk: BrokenLink<'_>) -> Option<(CowStr<'a>, CowStr<'
 	Some(("".into(), lnk.reference.to_string().into()))
 }
 
+fn is_hidden_codeblock_line(line: &str) -> bool {
+	line == "#"
+		|| (line.starts_with('#') && line.chars().nth(1).unwrap_or('a').is_whitespace())
+}
+
+struct EventFilter<'a, I: Iterator<Item = Event<'a>>> {
+	iter: I,
+
+	in_code_block: bool
+}
+
+impl<'a, I: Iterator<Item = Event<'a>>> EventFilter<'a, I> {
+	fn new(iter: I) -> Self {
+		Self {
+			iter,
+			in_code_block: false
+		}
+	}
+}
+
+impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
+	type Item = Event<'a>;
+
+	#[allow(clippy::never_loop)]
+	fn next(&mut self) -> Option<Self::Item> {
+		loop {
+			break Some(match self.iter.next()? {
+				Event::Start(tag) => Event::Start(match tag {
+					// we increase headings by 1 level
+					Tag::Heading {
+						level,
+						id,
+						classes,
+						attrs
+					} => {
+						let level = match level {
+							HeadingLevel::H1 => HeadingLevel::H2,
+							HeadingLevel::H2 => HeadingLevel::H3,
+							HeadingLevel::H3 => HeadingLevel::H4,
+							HeadingLevel::H4 => HeadingLevel::H5,
+							_ => HeadingLevel::H6
+						};
+						Tag::Heading {
+							level,
+							id,
+							classes,
+							attrs
+						}
+					},
+					// we record codeblocks and adjust their language
+					Tag::CodeBlock(kind) => {
+						debug_assert!(
+							!self.in_code_block,
+							"Recursive codeblocks, wtf???"
+						);
+						self.in_code_block = true;
+						Tag::CodeBlock(CodeBlockKind::Fenced(match kind {
+							CodeBlockKind::Indented => DEFAULT_CODEBLOCK_LANG.into(),
+							CodeBlockKind::Fenced(lang) => {
+								let mut lang: String = (*lang).to_owned();
+								for flag in RUSTDOC_CODEBLOCK_FLAGS {
+									lang = lang.replace(flag, "");
+								}
+								let mut lang: CowStr<'_> = lang.replace(',', "").into();
+								if lang.is_empty() {
+									lang = DEFAULT_CODEBLOCK_LANG.into();
+								}
+								lang
+							}
+						}))
+					},
+					// we don't need to modify any other tags
+					tag => tag
+				}),
+
+				Event::End(tag) => Event::End(match tag {
+					// we record when a codeblock ends
+					TagEnd::CodeBlock => {
+						debug_assert!(
+							self.in_code_block,
+							"Ending non-started code block, wtf???"
+						);
+						self.in_code_block = false;
+						TagEnd::CodeBlock
+					},
+					// we don't need to modify any other tags
+					tag => tag
+				}),
+
+				Event::Text(text)
+					if self.in_code_block =>
+				{
+					let filtered = text.lines().filter(|line| !is_hidden_codeblock_line(line)).join("\n");
+					if filtered.is_empty() {
+						continue
+					}
+					Event::Text(filtered.into())
+				},
+
+				ev => ev
+			});
+		}
+	}
+}
+
 struct Readme<'a> {
 	template: &'a str,
 	input: &'a InputFile,
@@ -137,60 +243,12 @@ impl<'a> Readme<'a> {
 			Some(&mut broken_link_callback)
 		);
 
-		// we transform the iterator as needed. this will be fed to
-		// pulldown-cmark-to-cmark.
-		let processed = parser.into_iter().map(|ev| match ev {
-			Event::Start(tag) => Event::Start(match tag {
-				// we increase headings by 1 level
-				Tag::Heading {
-					level,
-					id,
-					classes,
-					attrs
-				} => {
-					let level = match level {
-						HeadingLevel::H1 => HeadingLevel::H2,
-						HeadingLevel::H2 => HeadingLevel::H3,
-						HeadingLevel::H3 => HeadingLevel::H4,
-						HeadingLevel::H4 => HeadingLevel::H5,
-						_ => HeadingLevel::H6
-					};
-					Tag::Heading {
-						level,
-						id,
-						classes,
-						attrs
-					}
-				},
-				// we add the default codeblock language to indented codeblocks
-				Tag::CodeBlock(CodeBlockKind::Indented) => {
-					Tag::CodeBlock(CodeBlockKind::Fenced(DEFAULT_CODEBLOCK_LANG.into()))
-				},
-				// we strip rustdoc codeblock flags from fenced codeblocks
-				Tag::CodeBlock(CodeBlockKind::Fenced(lang)) => {
-					let mut lang: String = (*lang).to_owned();
-					for flag in RUSTDOC_CODEBLOCK_FLAGS {
-						lang = lang.replace(flag, "");
-					}
-					let mut lang: CowStr<'_> = lang.replace(',', "").into();
-					if lang.is_empty() {
-						lang = DEFAULT_CODEBLOCK_LANG.into();
-					}
-					Tag::CodeBlock(CodeBlockKind::Fenced(lang))
-				},
-				// we don't need to modify any other tags
-				tag => tag
-			}),
-			// other events don't contain anything we need to modify
-			ev => ev
-		});
-
 		let options = pulldown_cmark_to_cmark::Options {
 			code_block_token_count: 3,
 			..Default::default()
 		};
 		pulldown_cmark_to_cmark::cmark_with_options(
-			processed,
+			EventFilter::new(parser.into_iter()),
 			&mut self.readme,
 			options
 		)?;
