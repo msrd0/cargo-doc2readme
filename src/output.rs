@@ -204,9 +204,6 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 						id,
 						link_type
 					} => {
-						eprintln!(
-							"Link: dest_url={dest_url:?}, title={title:?}, id={id:?}"
-						);
 						let link = format!("__link{}", self.link_idx);
 						self.link_idx += 1;
 						if !dest_url.is_empty() {
