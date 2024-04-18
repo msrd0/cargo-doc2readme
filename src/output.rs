@@ -132,7 +132,7 @@ struct EventFilter<'a, I: Iterator<Item = Event<'a>>> {
 	in_code_block: bool,
 	block_quote_level: usize,
 	inside_github_alert: bool,
-	link_idx: usize,
+	link_idx: usize
 }
 
 impl<'a, I: Iterator<Item = Event<'a>>> EventFilter<'a, I> {
@@ -144,7 +144,7 @@ impl<'a, I: Iterator<Item = Event<'a>>> EventFilter<'a, I> {
 			in_code_block: false,
 			block_quote_level: 0,
 			inside_github_alert: false,
-			link_idx: 0,
+			link_idx: 0
 		}
 	}
 }
@@ -225,7 +225,7 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 						link_type,
 						dest_url,
 						title,
-						id,
+						id
 					} if dest_url.starts_with('#')
 						|| link_type == LinkType::Autolink
 						|| link_type == LinkType::Email =>
