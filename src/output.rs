@@ -110,11 +110,28 @@ fn is_hidden_codeblock_line(line: &str) -> bool {
 		|| (line.starts_with('#') && line.chars().nth(1).unwrap_or('a').is_whitespace())
 }
 
+fn is_alert(link_type: LinkType, dest_url: &CowStr, title: &CowStr, id: &CowStr) -> bool {
+	if link_type != LinkType::ShortcutUnknown || !dest_url.is_empty() || title != id {
+		return false;
+	}
+	is_alert_tag(title)
+}
+
+fn is_alert_tag(tag: &str) -> bool {
+	tag == "!NOTE"
+		|| tag == "!TIP"
+		|| tag == "!IMPORTANT"
+		|| tag == "!WARNING"
+		|| tag == "!CAUTION"
+}
+
 struct EventFilter<'a, I: Iterator<Item = Event<'a>>> {
 	iter: I,
 	links: &'a mut BTreeMap<String, String>,
 
 	in_code_block: bool,
+	block_quote_level: usize,
+	inside_github_alert: bool,
 	link_idx: usize
 }
 
@@ -125,6 +142,8 @@ impl<'a, I: Iterator<Item = Event<'a>>> EventFilter<'a, I> {
 			links,
 
 			in_code_block: false,
+			block_quote_level: 0,
+			inside_github_alert: false,
 			link_idx: 0
 		}
 	}
@@ -182,6 +201,26 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 						}))
 					},
 
+					Tag::BlockQuote => {
+						// block quotes can be nested
+						self.block_quote_level += 1;
+						Tag::BlockQuote
+					},
+
+					Tag::Link {
+						link_type,
+						dest_url,
+						title,
+						id
+					} if self.block_quote_level > 0
+						&& is_alert(link_type, &dest_url, &title, &id) =>
+					{
+						debug_assert!(!self.inside_github_alert, "nested github alerts");
+						self.inside_github_alert = true;
+						// emit HTML to prevent escaping of text
+						return Some(Event::InlineHtml(format!("[{}]", title).into()));
+					},
+
 					Tag::Link {
 						link_type,
 						dest_url,
@@ -204,9 +243,6 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 						id,
 						link_type
 					} => {
-						eprintln!(
-							"Link: dest_url={dest_url:?}, title={title:?}, id={id:?}"
-						);
 						let link = format!("__link{}", self.link_idx);
 						self.link_idx += 1;
 						if !dest_url.is_empty() {
@@ -238,7 +274,16 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 					tag => tag
 				}),
 
-				Event::End(tag) => Event::End(match tag {
+				// When we are inside a GitHub alert, we get three events:
+				// Start(Tag::Link), Text(<"link" text>), End(Tag::Link).
+				// Since we already emitted all the events we need to correctly
+				// render the alert from the Start event, we are skipping the
+				// Text and End events as long as we are inside the alert.
+				Event::Text(_) if self.inside_github_alert => {
+					continue;
+				},
+
+				Event::End(end_tag) => Event::End(match end_tag {
 					// we record when a codeblock ends
 					TagEnd::CodeBlock => {
 						debug_assert!(
@@ -247,6 +292,18 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 						);
 						self.in_code_block = false;
 						TagEnd::CodeBlock
+					},
+					TagEnd::BlockQuote => {
+						debug_assert!(
+							self.block_quote_level > 0,
+							"Ending a non-started block quote, wtf???"
+						);
+						self.block_quote_level -= 1;
+						TagEnd::BlockQuote
+					},
+					TagEnd::Link if self.inside_github_alert => {
+						self.inside_github_alert = false;
+						continue;
 					},
 					// we don't need to modify any other tags
 					tag => tag
