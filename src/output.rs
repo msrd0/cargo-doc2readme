@@ -274,8 +274,11 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 					tag => tag
 				}),
 
-				// skip text event when inside a github alter since we already
-				// emitted them when the link tag started
+				// When we are inside a GitHub alert, we get three events:
+				// Start(Tag::Link), Text(<"link" text>), End(Tag::Link).
+				// Since we already emitted all the events we need to correctly
+				// render the alert from the Start event, we are skipping the
+				// Text and End events as long as we are inside the alert.
 				Event::Text(_) if self.inside_github_alert => {
 					continue;
 				},
