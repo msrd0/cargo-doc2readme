@@ -121,7 +121,7 @@ fn is_alert_tag(tag: &str) -> bool {
 	tag == "!NOTE"
 		|| tag == "!TIP"
 		|| tag == "!IMPORTANT"
-		|| tag == "WARNING"
+		|| tag == "!WARNING"
 		|| tag == "!CAUTION"
 }
 
