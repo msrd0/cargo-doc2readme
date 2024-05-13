@@ -310,12 +310,15 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 				}),
 
 				Event::Text(text) if self.in_code_block => {
-					let filtered = text
+					let mut filtered = text
 						.lines()
 						.filter(|line| !is_hidden_codeblock_line(line))
 						.join("\n");
 					if filtered.is_empty() {
 						continue;
+					}
+					if text.ends_with('\n') {
+						filtered.push('\n');
 					}
 					Event::Text(filtered.into())
 				},
