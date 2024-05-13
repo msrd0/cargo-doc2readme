@@ -368,17 +368,7 @@ impl<'a> Readme<'a> {
 			..Default::default()
 		};
 		pulldown_cmark_to_cmark::cmark_with_options(
-			EventFilter::new(
-				parser.into_iter().map(|ev| {
-					eprintln!("[DEBUG]  input event: {ev:?}");
-					ev
-				}),
-				&mut self.links
-			)
-			.map(|ev| {
-				eprintln!("[DEBUG] output event: {ev:?}");
-				ev
-			}),
+			EventFilter::new(parser.into_iter(), &mut self.links),
 			&mut self.readme,
 			options
 		)?;
