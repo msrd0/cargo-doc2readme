@@ -3,6 +3,10 @@ use std::{io, ops::Range};
 
 pub type Span = Range<usize>;
 
+fn config() -> ariadne::Config {
+	ariadne::Config::default().with_index_type(ariadne::IndexType::Byte)
+}
+
 pub struct Diagnostic {
 	filename: String,
 	code: String,
@@ -41,7 +45,7 @@ impl Diagnostic {
 			.code
 			.split('\n')
 			.take(at.line - 1)
-			.map(|line| line.chars().count() + 1)
+			.map(|line| line.len() + 1)
 			.sum();
 		line_offset + at.column
 	}
@@ -57,6 +61,7 @@ impl Diagnostic {
 				self.filename.clone(),
 				0
 			)
+			.with_config(config())
 			.with_message(msg)
 			.finish()
 		);
@@ -69,6 +74,7 @@ impl Diagnostic {
 	{
 		self.reports.push(
 			Report::build(ReportKind::Warning, self.filename.clone(), 0)
+				.with_config(config())
 				.with_message(msg)
 				.finish()
 		);
@@ -83,6 +89,7 @@ impl Diagnostic {
 		let span = self.offset(span.start()) .. self.offset(span.end());
 		self.reports.push(
 			Report::build(ReportKind::Warning, self.filename.clone(), span.start)
+				.with_config(config())
 				.with_message(msg)
 				.with_label(Label::new((self.filename.clone(), span)).with_message(label))
 				.finish()
@@ -94,6 +101,7 @@ impl Diagnostic {
 		let span = self.offset(span.start()) .. self.offset(span.end());
 		self.reports.push(
 			Report::build(ReportKind::Warning, self.filename.clone(), span.start)
+			.with_config(config())
 			.with_message("Macro not expanded")
 			.with_label(Label::new((self.filename.clone(), span)).with_message("This macro was not expanded"))
 			.with_help("You can use `--expand-macros` on a nightly Rust toolchain to expand macros.")
@@ -107,7 +115,8 @@ impl Diagnostic {
 			ReportKind::Error,
 			self.filename.clone(),
 			self.offset(err.span().start())
-		);
+		)
+		.with_config(config());
 		report.set_message("Syntax Error");
 		for err in err {
 			let span = err.span();
@@ -130,6 +139,7 @@ impl Diagnostic {
 	{
 		self.reports.push(
 			Report::build(ReportKind::Error, self.filename.clone(), 0)
+				.with_config(config())
 				.with_message(msg)
 				.finish()
 		);
