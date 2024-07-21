@@ -19,13 +19,14 @@ use syn::Path;
 use url::Url;
 
 const DEFAULT_CODEBLOCK_LANG: &str = "rust";
+const RUSTDOC_CODEBLOCK_IGNORE_FLAG: &str = "ignore";
 /// List of codeblock flags that rustdoc allows
 const RUSTDOC_CODEBLOCK_FLAGS: &[&str] = &[
 	"compile_fail",
 	"edition2015",
 	"edition2018",
 	"edition2021",
-	"ignore",
+	RUSTDOC_CODEBLOCK_IGNORE_FLAG,
 	"no_run",
 	"should_panic"
 ];
@@ -130,6 +131,7 @@ struct EventFilter<'a, I: Iterator<Item = Event<'a>>> {
 	links: &'a mut BTreeMap<String, String>,
 
 	in_code_block: bool,
+	in_code_block_ignored: bool,
 	block_quote_level: usize,
 	inside_github_alert: bool,
 	link_idx: usize
@@ -142,6 +144,7 @@ impl<'a, I: Iterator<Item = Event<'a>>> EventFilter<'a, I> {
 			links,
 
 			in_code_block: false,
+			in_code_block_ignored: false,
 			block_quote_level: 0,
 			inside_github_alert: false,
 			link_idx: 0
@@ -189,6 +192,8 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 							CodeBlockKind::Indented => DEFAULT_CODEBLOCK_LANG.into(),
 							CodeBlockKind::Fenced(lang) => {
 								let mut lang: String = (*lang).to_owned();
+								self.in_code_block_ignored =
+									lang.contains(RUSTDOC_CODEBLOCK_IGNORE_FLAG);
 								for flag in RUSTDOC_CODEBLOCK_FLAGS {
 									lang = lang.replace(flag, "");
 								}
@@ -291,6 +296,7 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 							"Ending non-started code block, wtf???"
 						);
 						self.in_code_block = false;
+						self.in_code_block_ignored = false;
 						TagEnd::CodeBlock
 					},
 					TagEnd::BlockQuote => {
@@ -309,7 +315,9 @@ impl<'a, I: Iterator<Item = Event<'a>>> Iterator for EventFilter<'a, I> {
 					tag => tag
 				}),
 
-				Event::Text(text) if self.in_code_block => {
+				Event::Text(text)
+					if self.in_code_block && !self.in_code_block_ignored =>
+				{
 					let mut filtered = text
 						.lines()
 						.filter(|line| !is_hidden_codeblock_line(line))

@@ -11,3 +11,8 @@ Random lines with # will not be altered.
 // But not when those lines are actually relevant:
 #[no_std]
 ```
+
+```rust
+// If the code block has "ignore" flag, it is not processed, and the lines starting with "#" are not hidden
+# // You can see me
+```
