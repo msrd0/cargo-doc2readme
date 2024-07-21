@@ -429,6 +429,7 @@ fn parse_doc_attr(
 	expr: &Expr,
 	diagnostics: &mut Diagnostic
 ) -> syn::Result<Option<LitStr>> {
+	#[allow(dead_code)]
 	enum LitOrMacro {
 		Lit(LitStr),
 		Macro(Macro)
