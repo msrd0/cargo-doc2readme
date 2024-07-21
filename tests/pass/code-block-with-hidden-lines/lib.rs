@@ -12,3 +12,8 @@
 //! // But not when those lines are actually relevant:
 //! #[no_std]
 //! ```
+//!
+//! ```ignore
+//! // If the code block has "ignore" flag, it is not processed, and the lines starting with "#" are not hidden
+//! # // You can see me
+//! ```
