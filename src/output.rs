@@ -1,5 +1,5 @@
 use crate::{
-	input::{InputFile, Scope, TargetType},
+	input::{InputFile, Scope},
 	links::Links
 };
 use itertools::Itertools as _;
@@ -434,7 +434,7 @@ struct TemplateContext<'a> {
 	krate: &'a str,
 	#[serde(rename = "crate_version")]
 	krate_version: &'a str,
-	target: TargetType,
+	target: &'a str,
 
 	repository: Option<&'a str>,
 	repository_host: Option<String>,
@@ -463,7 +463,7 @@ pub fn emit(
 	let ctx = TemplateContext {
 		krate: &input.crate_name,
 		krate_version: &format!("{}", input.crate_version),
-		target: input.target_type,
+		target: &input.target_type,
 		repository,
 		repository_host: repository.and_then(|repo| {
 			let url = Url::parse(repo).ok();

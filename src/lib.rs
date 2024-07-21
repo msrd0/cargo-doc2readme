@@ -22,7 +22,7 @@ pub mod preproc;
 #[doc(hidden)]
 pub mod verify;
 
-use crate::input::Scope;
+use crate::input::{Scope, TargetFilter};
 use diagnostic::Diagnostic;
 use input::{CrateCode, InputFile, TargetType};
 
@@ -35,7 +35,7 @@ use input::{CrateCode, InputFile, TargetType};
 pub fn read_input(
 	manifest_path: Option<PathBuf>,
 	package: Option<String>,
-	prefer_bin: bool,
+	target_filter: Option<TargetFilter>,
 	expand_macros: bool,
 	template: PathBuf,
 	features: Option<String>,
@@ -47,7 +47,7 @@ pub fn read_input(
 		let input = InputFile {
 			crate_name: "N/A".into(),
 			crate_version: Version::new(0, 0, 0),
-			target_type: TargetType::Lib,
+			target_type: "lib".into(),
 			repository: None,
 			license: None,
 			rust_version: None,
@@ -127,43 +127,36 @@ Help: You can use --manifest-path and/or -p to specify the package to use."#
 		)
 	};
 
-	// find the target whose rustdoc comment we'll use.
-	// this uses a library target if exists, otherwise a binary target with the same name as the
-	// package, or otherwise the first binary target
-	let is_lib = |target: &&Target| target.is_lib();
-	let is_default_bin =
-		|target: &&Target| target.is_bin() && target.name == pkg.name.as_str();
-	let target_and_type = if prefer_bin {
-		pkg.targets
-			.iter()
-			.find(is_default_bin)
-			.map(|target| (target, TargetType::Bin))
-			.or_else(|| {
-				pkg.targets
-					.iter()
-					.find(is_lib)
-					.map(|target| (target, TargetType::Lib))
-			})
-	} else {
-		pkg.targets
-			.iter()
-			.find(is_lib)
-			.map(|target| (target, TargetType::Lib))
-			.or_else(|| {
-				pkg.targets
+	let target_opt = match target_filter {
+		None => pkg.targets.first(),
+		Some(TargetFilter::Name(name)) => {
+			pkg.targets.iter().find(|target| target.name == name)
+		},
+		Some(TargetFilter::Type(ty)) => {
+			let is_lib = |target: &&Target| target.is_lib();
+			let is_default_bin =
+				|target: &&Target| target.is_bin() && target.name == pkg.name.as_str();
+			match ty {
+				TargetType::Bin => pkg
+					.targets
 					.iter()
 					.find(is_default_bin)
-					.map(|target| (target, TargetType::Bin))
-			})
+					.or_else(|| pkg.targets.iter().find(is_lib)),
+				TargetType::Lib => pkg
+					.targets
+					.iter()
+					.find(is_lib)
+					.or_else(|| pkg.targets.iter().find(is_default_bin))
+			}
+		}
 	};
-	let (target, target_type) = unwrap!(
-		target_and_type.or_else(|| {
-			pkg.targets
-				.iter()
-				.find(|target| target.is_bin())
-				.map(|target| (target, TargetType::Bin))
-		}),
-		"Failed to find a library or binary target"
+	// default to the first bin if the user-requested target is not found
+	let target_opt =
+		target_opt.or_else(|| pkg.targets.iter().find(|target| target.is_bin()));
+	let target = unwrap!(target_opt, "Failed to find a library or binary target");
+	let target_kind = unwrap!(
+		target.kind.first(),
+		"Failed to determine the kind of the target"
 	);
 
 	// resolve the template
@@ -200,7 +193,7 @@ Help: You can use --manifest-path and/or -p to specify the package to use."#
 	// process the target
 	info!("Reading {}", file.display());
 	let input_file =
-		input::read_code(&metadata, pkg, code, target_type, &mut diagnostics);
+		input::read_code(&metadata, pkg, code, target_kind.clone(), &mut diagnostics);
 	debug!("Processing {input_file:#?}");
 
 	(input_file, template, diagnostics)

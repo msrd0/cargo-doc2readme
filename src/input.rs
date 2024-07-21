@@ -6,9 +6,10 @@ use log::{debug, info};
 use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::ToTokens as _;
 use semver::{Comparator, Op, Version, VersionReq};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
+	default::Default,
 	fmt::{self, Debug, Formatter},
 	fs::File,
 	io::{self, BufReader, Cursor, Read, Write},
@@ -86,7 +87,7 @@ impl Scope {
 	{
 		self.scope
 			.entry(key.into())
-			.or_insert_with(VecDeque::new)
+			.or_default()
 			.push_front((ty, value.into()));
 	}
 
@@ -292,11 +293,26 @@ impl CrateCode {
 	}
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Default, Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TargetType {
 	Bin,
+	#[default]
 	Lib
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[serde(untagged)]
+pub enum TargetFilter {
+	Name(String),
+	Type(TargetType)
+}
+
+impl Default for TargetFilter {
+	fn default() -> Self {
+		Self::Type(TargetType::default())
+	}
 }
 
 #[derive(Debug)]
@@ -306,7 +322,7 @@ pub struct InputFile {
 	/// The version of the crate
 	pub crate_version: Version,
 	/// The target type.
-	pub target_type: TargetType,
+	pub target_type: String,
 	/// The repository url (if specified).
 	pub repository: Option<String>,
 	/// The license field (if specified).
@@ -361,7 +377,7 @@ pub fn read_code(
 	metadata: &Metadata,
 	pkg: &Package,
 	code: CrateCode,
-	target_type: TargetType,
+	target_type: String,
 	diagnostics: &mut Diagnostic
 ) -> InputFile {
 	let crate_name = pkg.name.clone();
