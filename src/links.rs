@@ -61,6 +61,11 @@ impl Links {
 					crate_ver.cloned(),
 					lib_name.clone()
 				);
+				let crate_ver = if crate_name  == input.crate_name {
+					None
+				} else {
+					crate_ver
+				};
 				if segments.is_empty() {
 					format!(
 						"https://crates.io/crates/{crate_name}{}",
@@ -224,7 +229,7 @@ mod tests {
 
 		test_static(
 			"crate::MY_STATIC", Static,
-			"https://docs.rs/my-crate/1.2.3/my_crate/static.MY_STATIC.html"
+			"https://docs.rs/my-crate/latest/my_crate/static.MY_STATIC.html"
 		);
 
 		test_primitive(
