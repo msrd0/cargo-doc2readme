@@ -136,7 +136,7 @@ mod tests {
 					let mut input = crate::input::InputFile {
 						crate_name: "my-crate".into(),
 						crate_version: semver::Version::new(0, 0, 0),
-						target_type: crate::input::TargetType::Lib,
+						target_type: "lib".into(),
 						repository: None,
 						license: None,
 						rust_version: None,

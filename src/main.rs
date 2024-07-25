@@ -85,7 +85,11 @@
 //!  [cargo-readme]: https://github.com/livioribeiro/cargo-readme
 //!  [docs.rs]: https://docs.rs
 
-use cargo_doc2readme::{diagnostic::Diagnostic, output, read_input, verify};
+use cargo_doc2readme::{
+	diagnostic::Diagnostic,
+	input::{TargetFilter, TargetType},
+	output, read_input, verify
+};
 use clap::Parser;
 use log::{error, info, warn, Level};
 use std::{env, fs::File, io, path::PathBuf, process::ExitCode};
@@ -136,12 +140,16 @@ struct Args {
 	no_default_features: bool,
 
 	/// Prefer binary targets over library targets for rustdoc source.
-	#[arg(long, conflicts_with = "lib")]
+	#[arg(long, conflicts_with_all = ["target_name", "lib"])]
 	bin: bool,
 
 	/// Prefer library targets over binary targets for rustdoc source. This is the default.
-	#[arg(long, conflicts_with = "bin")]
+	#[arg(long, conflicts_with_all = ["target_name", "bin"])]
 	lib: bool,
+
+	/// Explicitly specify the target name
+	#[arg(long, conflicts_with_all = ["lib", "bin"])]
+	target_name: Option<String>,
 
 	/// Verify that the output file is (reasonably) up to date, and fail
 	/// if it needs updating. The output file will not be changed.
@@ -197,10 +205,18 @@ fn main() -> ExitCode {
 	)
 	.expect("Failed to initialize logger");
 
+	let target_filter = args.target_name.map(TargetFilter::Name).or({
+		if args.bin {
+			Some(TargetFilter::Type(TargetType::Bin))
+		} else {
+			Some(TargetFilter::Type(TargetType::Lib))
+		}
+	});
+
 	let (input_file, template, diagnostics) = read_input(
 		args.manifest_path,
 		args.package,
-		args.bin,
+		target_filter,
 		args.expand_macros,
 		args.template,
 		args.features,
