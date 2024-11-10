@@ -50,6 +50,10 @@ impl Diagnostic {
 		line_offset + at.column
 	}
 
+	fn offset_span(&self, span: proc_macro2::Span) -> Range<usize> {
+		self.offset(span.start()) .. self.offset(span.end())
+	}
+
 	/// Info without a code label.
 	pub fn info<T>(&mut self, msg: T)
 	where
@@ -58,8 +62,7 @@ impl Diagnostic {
 		self.reports.push(
 			Report::build(
 				ReportKind::Custom("info", Color::Green),
-				self.filename.clone(),
-				0
+				(self.filename.clone(), 0 .. 0)
 			)
 			.with_config(config())
 			.with_message(msg)
@@ -73,7 +76,7 @@ impl Diagnostic {
 		T: ToString
 	{
 		self.reports.push(
-			Report::build(ReportKind::Warning, self.filename.clone(), 0)
+			Report::build(ReportKind::Warning, (self.filename.clone(), 0 .. 0))
 				.with_config(config())
 				.with_message(msg)
 				.finish()
@@ -86,9 +89,9 @@ impl Diagnostic {
 		T: ToString,
 		L: ToString
 	{
-		let span = self.offset(span.start()) .. self.offset(span.end());
+		let span = self.offset_span(span);
 		self.reports.push(
-			Report::build(ReportKind::Warning, self.filename.clone(), span.start)
+			Report::build(ReportKind::Warning, (self.filename.clone(), span.clone()))
 				.with_config(config())
 				.with_message(msg)
 				.with_label(Label::new((self.filename.clone(), span)).with_message(label))
@@ -98,9 +101,9 @@ impl Diagnostic {
 
 	/// Warning that says that a macro was not expanded and helps to fix it.
 	pub fn warn_macro_not_expanded(&mut self, span: proc_macro2::Span) {
-		let span = self.offset(span.start()) .. self.offset(span.end());
+		let span = self.offset_span(span);
 		self.reports.push(
-			Report::build(ReportKind::Warning, self.filename.clone(), span.start)
+			Report::build(ReportKind::Warning, (self.filename.clone(), span.clone()))
 			.with_config(config())
 			.with_message("Macro not expanded")
 			.with_label(Label::new((self.filename.clone(), span)).with_message("This macro was not expanded"))
@@ -111,22 +114,13 @@ impl Diagnostic {
 
 	/// Syntax error with the code span from syn's error.
 	pub fn syntax_error(&mut self, err: syn::Error) {
-		let mut report = Report::build(
-			ReportKind::Error,
-			self.filename.clone(),
-			self.offset(err.span().start())
-		)
-		.with_config(config());
+		let span = self.offset_span(err.span());
+		let mut report = Report::build(ReportKind::Error, (self.filename.clone(), span))
+			.with_config(config());
 		report.set_message("Syntax Error");
 		for err in err {
-			let span = err.span();
-			report.add_label(
-				Label::new((
-					self.filename.clone(),
-					self.offset(span.start()) .. self.offset(span.end())
-				))
-				.with_message(err)
-			);
+			let span = self.offset_span(err.span());
+			report.add_label(Label::new((self.filename.clone(), span)).with_message(err));
 		}
 		self.reports.push(report.finish());
 		self.fail = true;
@@ -138,7 +132,7 @@ impl Diagnostic {
 		T: ToString
 	{
 		self.reports.push(
-			Report::build(ReportKind::Error, self.filename.clone(), 0)
+			Report::build(ReportKind::Error, (self.filename.clone(), 0 .. 0))
 				.with_config(config())
 				.with_message(msg)
 				.finish()
