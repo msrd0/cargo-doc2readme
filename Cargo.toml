@@ -20,7 +20,7 @@ harness = false
 
 [dependencies]
 anyhow = "1.0"
-ariadne = "0.4.1"
+ariadne = "0.5"
 base64 = "0.22"
 blake3 = "1.5"
 cargo_metadata = "0.18"
