@@ -3,7 +3,9 @@
 #![forbid(unsafe_code)]
 
 use cargo_doc2readme::{
-	diagnostic::Diagnostic, input::InputFile, output, read_input, verify
+	diagnostic::Diagnostic,
+	input::{InputFile, TargetFilter},
+	output, read_input, verify
 };
 use lazy_regex::regex_replace_all;
 use libtest::{Arguments, Failed, Trial};
@@ -54,6 +56,9 @@ struct TestConfig {
 
 	/// Test with these features enabled. Ignored unless combined with `--expand-macros`.
 	features: Option<String>,
+
+	#[serde(default)]
+	target_filter: Option<TargetFilter>,
 
 	/// Test with all features enabled. Ignored unless combined with `--expand-macros`.
 	#[serde(default)]
@@ -116,7 +121,7 @@ impl<'a> TestRun<'a> {
 		let (input_file, template, diagnostic) = read_input(
 			Some(manifest_path),
 			None,
-			false,
+			data.config.target_filter.clone(),
 			data.config.expand_macros,
 			template_path,
 			data.config.features.clone(),
