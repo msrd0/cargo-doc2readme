@@ -23,7 +23,7 @@ anyhow = "1.0"
 ariadne = "0.5"
 base64 = "0.22"
 blake3 = "1.5"
-cargo_metadata = "0.18"
+cargo_metadata = "0.19"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 either = "1.13"
 itertools = "0.13"
