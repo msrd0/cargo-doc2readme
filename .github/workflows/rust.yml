@@ -11,11 +11,11 @@ env:
   RUST_BACKTRACE: "1"
   RUST_LOG: "info"
   # speed up build by using clang/lld
-  CC: "clang-14"
-  CXX: "clang++-14"
-  LD: "clang-14"
-  LDFLAGS: "-fuse-ld=lld-14"
-  RUSTFLAGS: "-C linker=clang-14 -C link-arg=-fuse-ld=lld-14"
+  CC: "clang"
+  CXX: "clang++"
+  LD: "clang"
+  LDFLAGS: "-fuse-ld=lld"
+  RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=lld"
 
 jobs:
   test:
