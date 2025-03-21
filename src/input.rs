@@ -18,8 +18,8 @@ use std::{
 use syn::{
 	parse::{Parse, ParseStream},
 	spanned::Spanned as _,
-	Expr, ExprLit, Ident, Item, ItemMacro, ItemUse, Lit, LitStr, Macro, Meta, Token,
-	UsePath, UseTree, Visibility
+	Expr, ExprLit, Ident, Item, ItemMacro, ItemUse, Lit, LitStr, Meta, Token, UsePath,
+	UseTree, Visibility
 };
 
 type ScopeScope = HashMap<String, VecDeque<(LinkType, String)>>;
@@ -34,10 +34,15 @@ pub struct Scope {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LinkType {
+	/// A procedural macro attribute.
+	Attr,
 	Const,
+	/// A procedural derive macro.
+	Derive,
 	Enum,
 	ExternCrate,
 	Function,
+	/// A `macro` can be both a procedural and declarative macro.
 	Macro,
 	Mod,
 	Static,
@@ -86,7 +91,7 @@ impl Scope {
 	{
 		self.scope
 			.entry(key.into())
-			.or_insert_with(VecDeque::new)
+			.or_default()
 			.push_front((ty, value.into()));
 	}
 
@@ -429,22 +434,6 @@ fn parse_doc_attr(
 	expr: &Expr,
 	diagnostics: &mut Diagnostic
 ) -> syn::Result<Option<LitStr>> {
-	enum LitOrMacro {
-		Lit(LitStr),
-		Macro(Macro)
-	}
-
-	impl Parse for LitOrMacro {
-		fn parse(input: ParseStream) -> syn::Result<Self> {
-			let _: Token![=] = input.parse()?;
-			Ok(if input.peek(LitStr) {
-				Self::Lit(input.parse()?)
-			} else {
-				Self::Macro(input.parse()?)
-			})
-		}
-	}
-
 	match expr {
 		Expr::Lit(ExprLit {
 			lit: Lit::Str(lit), ..
@@ -671,7 +660,7 @@ fn read_scope_from_file(
 	let mut scope = Scope::prelude(pkg.edition);
 	let mut editor = ScopeEditor::new(&mut scope, &crate_name, diagnostics);
 
-	for i in &file.items {
+	'items: for i in &file.items {
 		match i {
 			Item::Const(i) if is_public(&i.vis) => {
 				editor.insert(&i.ident, LinkType::Const)
@@ -686,7 +675,53 @@ fn read_scope_from_file(
 					format!("::{}", i.ident)
 				);
 			},
-			Item::Fn(i) if is_public(&i.vis) => editor.insert_fun(&i.sig.ident),
+			Item::Fn(i) if is_public(&i.vis) => {
+				for a in &i.attrs {
+					let ap = match &a.meta {
+						Meta::Path(p) => p,
+						Meta::List(l) => &l.path,
+						Meta::NameValue(nv) => &nv.path
+					};
+					let ai = match ap.get_ident() {
+						Some(ai) => ai,
+						None => continue
+					};
+					if ai == "proc_macro" {
+						editor.insert_macro(&i.sig.ident);
+					} else if ai == "proc_macro_attribute" {
+						editor.insert(&i.sig.ident, LinkType::Attr);
+					} else if ai == "proc_macro_derive" {
+						let Meta::List(l) = &a.meta else {
+							editor.diagnostics.syntax_error(syn::Error::new(
+								a.meta.span(),
+								"Expected proc_macro_derive to specify a name for the derive macro"
+							));
+							continue 'items;
+						};
+						let Some(derive_ident) =
+							l.tokens.clone().into_iter().next().and_then(|token| {
+								match token {
+									TokenTree::Ident(ident) => Some(ident),
+									_ => None
+								}
+							})
+						else {
+							editor.diagnostics.syntax_error(syn::Error::new(
+								l.tokens.span(),
+								"Expected proc_macro_derive to specify a name for the derive macro"
+							));
+							continue 'items;
+						};
+						editor.insert(&derive_ident, LinkType::Derive);
+					} else {
+						continue;
+					}
+					// if we didn't find a proc-macro attribute, we would've continued
+					// the inner loop before, so in this case, we continue the outer loop
+					continue 'items;
+				}
+				editor.insert_fun(&i.sig.ident)
+			},
 			Item::Macro(i) if is_exported(i) && i.ident.is_some() => {
 				editor.insert_macro(i.ident.as_ref().unwrap())
 			},
