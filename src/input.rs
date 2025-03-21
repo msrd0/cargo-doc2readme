@@ -213,6 +213,16 @@ impl Scope {
 			}
 		}
 
+		if edition >= Edition::E2024 {
+			// https://doc.rust-lang.org/edition-guide/rust-2024/prelude.html
+			for (key, value) in make_prelude([
+				("Future", "future", LinkType::Trait),
+				("IntoFuture", "future", LinkType::Trait)
+			]) {
+				scope.scope.insert(key, value);
+			}
+		}
+
 		scope
 	}
 }
