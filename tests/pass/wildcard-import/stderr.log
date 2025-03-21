@@ -1,5 +1,5 @@
 Warning: Glob use statements can lead to incomplete link generation.
-   ╭─[lib.rs:4:23]
+   ╭─[ lib.rs:4:23 ]
    │
  4 │ use std::io::prelude::*;
    │                       ┬  

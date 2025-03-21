@@ -1,5 +1,5 @@
 Error: Syntax Error
-   ╭─[lib.rs:1:5]
+   ╭─[ lib.rs:1:5 ]
    │
  1 │ main() {}
    │     ┬  

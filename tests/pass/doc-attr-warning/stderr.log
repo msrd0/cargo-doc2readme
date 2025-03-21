@@ -1,5 +1,5 @@
 Warning: Macro not expanded
-   ╭─[lib.rs:1:10]
+   ╭─[ lib.rs:1:10 ]
    │
  1 │ #![doc = concat!("Hello ", "World!")]
    │          ─────────────┬─────────────  
