@@ -10,11 +10,7 @@ use pulldown_cmark::{
 };
 use semver::Version;
 use serde::Serialize;
-use std::{
-	collections::BTreeMap,
-	fmt::{self, Write as _},
-	io
-};
+use std::{collections::BTreeMap, fmt::Write as _, io};
 use syn::Path;
 use url::Url;
 
@@ -302,7 +298,7 @@ impl<'a> Readme<'a> {
 		}
 	}
 
-	fn write_markdown(&mut self) -> fmt::Result {
+	fn write_markdown(&mut self) -> Result<(), pulldown_cmark_to_cmark::Error> {
 		// we need this broken link callback for the purpose of broken links being parsed as links
 		let mut broken_link_callback = broken_link_callback;
 		let parser = Parser::new_with_broken_link_callback(
