@@ -89,8 +89,14 @@ impl Links {
 			segments_uri += "/";
 		}
 		match link_type {
+			Some(LinkType::Attr) => {
+				format!("{base_url}/{segments_uri}attr.{last}.html")
+			},
 			Some(LinkType::Const) => {
 				format!("{base_url}/{segments_uri}constant.{last}.html")
+			},
+			Some(LinkType::Derive) => {
+				format!("{base_url}/{segments_uri}derive.{last}.html")
 			},
 			Some(LinkType::Enum) => {
 				format!("{base_url}/{segments_uri}enum.{last}.html")
