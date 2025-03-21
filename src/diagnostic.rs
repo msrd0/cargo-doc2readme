@@ -33,7 +33,10 @@ impl Diagnostic {
 	}
 
 	pub fn print_to<W: io::Write>(&self, mut w: W) -> io::Result<()> {
-		let mut cache = (self.filename.clone(), self.code.clone().into());
+		let mut cache = (
+			self.filename.clone(),
+			ariadne::Source::from(self.code.clone())
+		);
 		for r in &self.reports {
 			r.write(&mut cache, &mut w)?;
 		}
