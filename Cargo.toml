@@ -23,10 +23,10 @@ anyhow = "1.0"
 ariadne = "0.5"
 base64 = "0.22"
 blake3 = "1.5"
-cargo_metadata = "0.18"
+cargo_metadata = "0.19"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 either = "1.13"
-itertools = "0.13"
+itertools = "0.14"
 log = "0.4"
 memchr = "2.7"
 minijinja = { version = "2.4", features = ["builtins", "debug", "key_interning", "urlencode"], default-features = false }
@@ -48,7 +48,7 @@ pulldown-cmark = { version = "0.12", default-features = false, features = ["simd
 [dev-dependencies]
 hex = "0.4.3"
 lazy-regex = "3.0"
-libtest = { version = "0.7", package = "libtest-mimic" }
+libtest = { version = "0.8.1", package = "libtest-mimic" }
 pretty_assertions = "1.4"
 rustversion = "1.0.11"
 toml = { version = "0.1", package = "basic-toml" }
